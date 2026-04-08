@@ -499,8 +499,8 @@ function pgL2(){
   return`
   <div class="g4" style="margin-bottom:12px;">
     <div class="mc"><div class="ml">综合评分</div><div class="mv" style="color:${sc(l2.score)};">${l2.score}<span style="font-size:12px;font-weight:400;color:var(--tx2);">/100</span></div></div>
-    <div class="mc"><div class="ml">BULLISH信号</div><div class="mv" style="color:var(--G);">${[...l2.intl,...l2.futures].filter(s=>s.direction==='BULLISH').length}</div></div>
-    <div class="mc"><div class="ml">BEARISH信号</div><div class="mv" style="color:var(--R);">${[...l2.intl,...l2.futures].filter(s=>s.direction==='BEARISH').length}</div></div>
+    <div class="mc"><div class="ml">BULLISH信号</div><div class="mv" style="color:var(--G);">${[...l2.intl,...l2.futures,...(l2.bank||[])].filter(s=>s.direction==='BULLISH').length}</div></div>
+    <div class="mc"><div class="ml">BEARISH信号</div><div class="mv" style="color:var(--R);">${[...l2.intl,...l2.futures,...(l2.bank||[])].filter(s=>s.direction==='BEARISH').length}</div></div>
     <div class="mc"><div class="ml">与L1背离</div><div class="mv" style="font-size:14px;color:${divBad?'var(--A)':'var(--G)'};">${divBad?'⚠ 背离':'✓ 一致'}</div></div>
   </div>
 
@@ -542,7 +542,20 @@ function pgL2(){
         <td style="font-size:12px;color:var(--tx2);">${s.impact}</td>
       </tr>`).join('')}
     </table>
-  </div>`;
+  </div>
+
+  ${l2.bank&&l2.bank.length?`<div class="card"><div class="ct">🏦 银行/信用信号</div>
+    <table>
+      <tr><th>指标</th><th>数值</th><th>变动</th><th>方向</th><th>深层含义</th></tr>
+      ${l2.bank.map(s=>`<tr>
+        <td style="font-weight:600;">${s.name}</td>
+        <td>${s.value}<span style="font-size:11px;color:var(--tx2);"> ${s.unit}</span></td>
+        <td>${s.change!=null?`<span style="color:${s.change>0?'var(--R)':'var(--G)'};">${s.change>0?'+':''}${s.change}</span>`:'—'}</td>
+        <td>${dirTag(s.direction)}</td>
+        <td style="font-size:12px;color:var(--tx2);line-height:1.5;">${s.impact}</td>
+      </tr>`).join('')}
+    </table>
+  </div>`:''}`;
 }
 
 // ── L3 ───────────────────────────────────────────────────────────────────────
@@ -639,6 +652,14 @@ function pgL4(){
       ${p.financials.mktcap?`<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:var(--sf2);color:var(--tx2);">市值 ${p.financials.mktcap}</span>`:''}
       <span style="font-size:10px;padding:2px 5px;border-radius:3px;background:var(--Pbg);color:var(--Ptx);">${p.data_source==='auto'?'自动评分':'静态评分'}</span>
     </div>`:''}
+    ${p.tech_summary?`<div style="margin-bottom:8px;padding:8px 12px;border-radius:var(--r);background:var(--Bbg);border-left:3px solid var(--B);">
+      <div style="font-size:11px;font-weight:700;color:var(--Btx);margin-bottom:3px;">📊 技术面分析</div>
+      <div style="font-size:12px;color:var(--tx2);line-height:1.6;">${p.tech_summary}</div>
+    </div>`:''}
+    ${p.deep_financial?`<div style="margin-bottom:8px;padding:8px 12px;border-radius:var(--r);background:var(--Pbg);border-left:3px solid var(--P);">
+      <div style="font-size:11px;font-weight:700;color:var(--Ptx);margin-bottom:3px;">🔍 深度财务分析</div>
+      <div style="font-size:12px;color:var(--tx2);line-height:1.6;">${p.deep_financial}</div>
+    </div>`:''}
     ${p.green_flags.length?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">
       ${p.green_flags.map(f=>`<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:var(--Gbg);color:var(--Gtx);">✓ ${f}</span>`).join('')}
     </div>`:''}
@@ -699,6 +720,14 @@ function pgL5(){
       <strong>${d.verdict==='GO'?'执行：':d.verdict==='WAIT'?'等待：':'拒绝：'}</strong>${d.action}
       <div style="font-size:11px;margin-top:3px;opacity:.8;">${d.reason}</div>
     </div>
+    ${d.tech_summary?`<div style="margin-top:8px;padding:8px 12px;border-radius:var(--r);background:var(--Bbg);border-left:3px solid var(--B);">
+      <div style="font-size:11px;font-weight:700;color:var(--Btx);margin-bottom:2px;">📊 技术面</div>
+      <div style="font-size:12px;color:var(--tx2);line-height:1.5;">${d.tech_summary}</div>
+    </div>`:''}
+    ${d.deep_financial?`<div style="margin-top:6px;padding:8px 12px;border-radius:var(--r);background:var(--Pbg);border-left:3px solid var(--P);">
+      <div style="font-size:11px;font-weight:700;color:var(--Ptx);margin-bottom:2px;">🔍 深度财务</div>
+      <div style="font-size:12px;color:var(--tx2);line-height:1.5;">${d.deep_financial}</div>
+    </div>`:''}
   </div>`;
   return`
   <div class="g4" style="margin-bottom:12px;">
@@ -900,7 +929,7 @@ function pgCross(){
       </div>
       <div>
         <div style="font-size:12px;font-weight:700;color:var(--tx2);margin-bottom:8px;">Layer 2 期货</div>
-        ${[...D.layer2.intl,...D.layer2.futures].filter(s=>s.direction!=='NEUTRAL').map(s=>`
+        ${[...D.layer2.intl,...D.layer2.futures,...(D.layer2.bank||[])].filter(s=>s.direction!=='NEUTRAL').map(s=>`
         <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bd);">
           <div class="dot ${s.direction==='BULLISH'?'dG':'dR'}"></div>
           <div style="flex:1;font-size:12px;">${s.name}</div>

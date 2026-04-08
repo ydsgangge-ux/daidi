@@ -111,6 +111,9 @@ def profile_to_dict(p) -> dict:
             "deduct_yoy": p.net_profit_deducted_yoy,
             "debt_ratio": p.debt_ratio,
         },
+        "tech_summary":    getattr(p, "tech_summary", ""),
+        "tech_overall":    getattr(p, "tech_overall", ""),
+        "deep_financial":  getattr(p, "deep_financial", ""),
         "data_source": p.data_source,
     }
 
@@ -135,6 +138,9 @@ def decision_to_dict(d, capital: float) -> dict:
         "verdict":         d.verdict,
         "reason":          d.reason,
         "action":          d.action,
+        "tech_summary":    getattr(d, "tech_summary", ""),
+        "tech_overall":    getattr(d, "tech_overall", ""),
+        "deep_financial":  getattr(d, "deep_financial", ""),
     }
 
 
@@ -293,6 +299,7 @@ def run_export(capital: float = 1_000_000,
             "divergence": l2.divergence,
             "intl":       [sig_to_dict(s) for s in l2.intl],
             "futures":    [sig_to_dict(s) for s in l2.futures],
+            "bank":       [sig_to_dict(s) for s in l2.bank],
         },
         "layer3": {
             "active":          [chain_to_dict(c) for c in l3.active_chains],
