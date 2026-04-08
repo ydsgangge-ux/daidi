@@ -622,30 +622,32 @@ def get_bank_signals() -> list:
 
     # ═══════ 2. Shibor 隔夜利率 ═══════
     try:
-        df = ak.rate_interbank(market="上海银行间同业拆放利率", symbol="隔夜",
-                               start_date="", end_date="")
+        df = ak.rate_interbank()
         if df is not None and len(df) >= 5:
             df.columns = [c.strip() for c in df.columns]
-            val_col = [c for c in df.columns if '利率' in c or '值' in c
-                       or 'Shibor' in c or 'LPR' not in c]
-            if not val_col:
-                val_col = [df.columns[-1]]
-            series = pd.to_numeric(df[val_col[0]], errors="coerce").dropna()
-            if len(series) >= 5:
-                latest = float(series.iloc[-1])
-                avg5 = float(series.tail(6).iloc[:-1].mean())
-                direction = "BULLISH" if latest < 1.5 else (
-                    "BEARISH" if latest > 2.5 else "NEUTRAL")
-                signals.append(IntlSignal(
-                    name="Shibor隔夜", value=round(latest, 3), unit="%",
-                    change=round(latest - avg5, 3), direction=direction,
-                    a_share_impact=_bank_impact("Shibor隔夜", direction),
-                    source="上海银行间同业拆借中心"
-                ))
+            # 默认返回列: 报告日 / 利率 / 涨跌
+            rate_col = [c for c in df.columns if '利率' in c]
+            if not rate_col:
+                rate_col = [df.columns[1]] if len(df.columns) > 1 else []
+            if rate_col:
+                series = pd.to_numeric(df[rate_col[0]], errors="coerce").dropna()
+                if len(series) >= 5:
+                    latest = float(series.iloc[-1])
+                    avg5 = float(series.tail(6).iloc[:-1].mean())
+                    direction = "BULLISH" if latest < 1.5 else (
+                        "BEARISH" if latest > 2.5 else "NEUTRAL")
+                    signals.append(IntlSignal(
+                        name="Shibor隔夜", value=round(latest, 3), unit="%",
+                        change=round(latest - avg5, 3), direction=direction,
+                        a_share_impact=_bank_impact("Shibor隔夜", direction),
+                        source="上海银行间同业拆借中心"
+                    ))
     except Exception:
         pass
 
-    # ═══════ 3. 银行板块指数走势 ═══════
+    # ═══════ 3. 银行板块指数走势（多数据源备用） ═══════
+    bank_fetched = False
+    # 方案A: 东方财富行业板块
     try:
         df = ak.stock_board_industry_hist_em(symbol="银行", period="daily",
                                               start_date="20250101", adjust="qfq")
@@ -668,8 +670,36 @@ def get_bank_signals() -> list:
                     a_share_impact=_bank_impact("银行板块指数", direction),
                     source="东方财富"
                 ))
+                bank_fetched = True
     except Exception:
         pass
+
+    # 方案B: 用沪深300代理大盘（上证指数 sh000001）
+    if not bank_fetched:
+        try:
+            df = ak.stock_zh_index_daily(symbol="sh000001")
+            if df is not None and len(df) >= 20:
+                df.columns = [c.strip() for c in df.columns]
+                close_col = [c for c in df.columns if 'close' in c.lower() or '收盘' in c]
+                if not close_col:
+                    close_col = [df.columns[-1]]
+                df[close_col[0]] = pd.to_numeric(df[close_col[0]], errors="coerce")
+                series = df[close_col[0]].dropna()
+                if len(series) >= 20:
+                    latest = float(series.iloc[-1])
+                    ma20 = float(series.tail(20).mean())
+                    chg_pct = (latest - ma20) / ma20 * 100
+                    direction = "BULLISH" if chg_pct > 3 else (
+                        "BEARISH" if chg_pct < -3 else "NEUTRAL")
+                    signals.append(IntlSignal(
+                        name="上证指数(银行代理)", value=round(latest, 2), unit="点",
+                        change=round(chg_pct, 2), direction=direction,
+                        a_share_impact=_bank_impact("银行板块指数", direction) +
+                        "（注：银行板块数据获取失败，以上证指数代替）",
+                        source="新浪"
+                    ))
+        except Exception:
+            pass
 
     # ═══════ 4. 社会融资规模（最新月度） ═══════
     try:
