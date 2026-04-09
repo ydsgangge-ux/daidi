@@ -199,19 +199,42 @@ def fetch_financial_data(code: str) -> dict:
 _kline_cache: Dict[str, pd.DataFrame] = {}
 
 def _get_kline_cached(code: str) -> Optional[pd.DataFrame]:
-    """获取个股日线行情（带缓存+3次重试），所有需要K线的函数统一调用此函数"""
+    """获取个股日线行情（东方财富→腾讯备用，带缓存+重试）"""
     import time
     if code in _kline_cache:
         return _kline_cache[code]
+
+    # 方案A: 东方财富（列名为中文：收盘/最高/最低/成交量）
     df = None
-    for attempt in range(3):
+    for attempt in range(2):
         try:
             df = ak.stock_zh_a_hist(symbol=code, period="daily",
                                     start_date="20240101", adjust="qfq")
-            break
+            if df is not None and len(df) > 0:
+                break
         except Exception:
-            if attempt < 2:
-                time.sleep(2 * (attempt + 1))
+            if attempt < 1:
+                time.sleep(2)
+
+    # 方案B: 腾讯数据源（列名为英文：close/high/low/volume）
+    if df is None or len(df) == 0:
+        try:
+            prefix = "sh" if code.startswith("6") else "sz"
+            tx_code = prefix + code
+            df = ak.stock_zh_a_hist_tx(symbol=tx_code)
+            if df is not None and len(df) > 0:
+                # 统一列名为中文，与东方财富一致
+                col_map = {"date": "日期", "open": "开盘", "close": "收盘",
+                           "high": "最高", "low": "最低", "volume": "成交量",
+                           "amount": "成交额"}
+                df = df.rename(columns={k: v for k, v in col_map.items() if k in df.columns})
+                # 腾讯无 volume 列时，用成交额近似替代（相对比例不受影响）
+                if "成交量" not in df.columns and "成交额" in df.columns:
+                    df["成交量"] = df["成交额"]
+                # 腾讯数据无前复权，用全部数据（已足够计算技术指标）
+        except Exception:
+            pass
+
     if df is not None and len(df) > 0:
         _kline_cache[code] = df
     return df
