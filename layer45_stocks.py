@@ -224,9 +224,10 @@ def compute_technical_indicators(code: str) -> dict:
     """
     df = _get_kline_cached(code)
     if df is None or len(df) < 60:
-            return {"overall": "NONE",
-                    "summary": "数据不足60日，无法计算完整技术指标"}
+        return {"overall": "NONE",
+                "summary": "数据不足60日，无法计算完整技术指标"}
 
+    try:
         df["收盘"] = pd.to_numeric(df["收盘"], errors="coerce")
         df["最高"] = pd.to_numeric(df["最高"], errors="coerce")
         df["最低"] = pd.to_numeric(df["最低"], errors="coerce")
