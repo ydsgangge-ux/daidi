@@ -82,6 +82,28 @@ def chain_to_dict(c) -> dict:
     }
 
 
+def _extract_kline(code: str, days: int = 90) -> list:
+    """提取最近N日K线数据（供前端画图）"""
+    kline = []
+    try:
+        from layer45_stocks import _get_kline_cached
+        df = _get_kline_cached(code)
+        if df is not None and len(df) > 0:
+            tail = df.tail(days)
+            for _, row in tail.iterrows():
+                kline.append({
+                    "date": str(row.get("日期", "")),
+                    "open": round(float(pd.to_numeric(row.get("开盘", 0), errors="coerce") or 0), 2),
+                    "close": round(float(pd.to_numeric(row.get("收盘", 0), errors="coerce") or 0), 2),
+                    "high": round(float(pd.to_numeric(row.get("最高", 0), errors="coerce") or 0), 2),
+                    "low": round(float(pd.to_numeric(row.get("最低", 0), errors="coerce") or 0), 2),
+                    "volume": round(float(pd.to_numeric(row.get("成交量", 0), errors="coerce") or 0), 0),
+                })
+    except Exception:
+        pass
+    return kline
+
+
 def profile_to_dict(p) -> dict:
     return {
         "code":    p.code,
@@ -115,6 +137,7 @@ def profile_to_dict(p) -> dict:
         "tech_overall":    getattr(p, "tech_overall", ""),
         "deep_financial":  getattr(p, "deep_financial", ""),
         "data_source": p.data_source,
+        "kline":       _extract_kline(p.code),
     }
 
 
@@ -141,6 +164,7 @@ def decision_to_dict(d, capital: float) -> dict:
         "tech_summary":    getattr(d, "tech_summary", ""),
         "tech_overall":    getattr(d, "tech_overall", ""),
         "deep_financial":  getattr(d, "deep_financial", ""),
+        "kline":           _extract_kline(d.code),
     }
 
 

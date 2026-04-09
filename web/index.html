@@ -217,6 +217,7 @@ tr:last-child td{border-bottom:none;}
 </head>
 <body>
 <div id="loading"><div class="spin"></div><div style="font-size:13px;color:var(--tx2);">载入数据中…</div></div>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
 
 <div class="topbar">
   <div>
@@ -671,6 +672,7 @@ function pgL4(){
       <span style="font-size:22px;font-weight:700;color:${p.scores.total>=85?'var(--G)':p.scores.total>=70?'var(--A)':'var(--R)'};">${p.scores.total}</span>
       <span style="font-size:12px;color:var(--tx2);">/100</span>
     </div>
+    ${p.kline&&p.kline.length>5?`<div id="kline-l4-${p.code}" style="width:100%;height:260px;margin-top:10px;"></div>`:''}
   </div>`;
   return`
   <div class="g4" style="margin-bottom:12px;">
@@ -728,6 +730,7 @@ function pgL5(){
       <div style="font-size:11px;font-weight:700;color:var(--Ptx);margin-bottom:2px;">🔍 深度财务</div>
       <div style="font-size:12px;color:var(--tx2);line-height:1.5;">${d.deep_financial}</div>
     </div>`:''}
+    ${d.kline&&d.kline.length>5?`<div id="kline-${d.code}" style="width:100%;height:320px;margin-top:10px;"></div>`:''}
   </div>`;
   return`
   <div class="g4" style="margin-bottom:12px;">
@@ -1077,7 +1080,95 @@ function applyData(){
   document.getElementById('tsb').textContent='更新：'+D.meta.generated_at;
   renderAll();
   document.getElementById('loading').style.display='none';
+  renderKlineCharts();
 }
+
+// ── K线蜡烛图渲染 ────────────────────────────────────────────────────────────
+function _renderSingleKline(code,kline,elId,height){
+  if(!kline||kline.length<5||!elId) return;
+  const el=document.getElementById(elId);
+  if(!el) return;
+  const chart=echarts.init(el,null,{renderer:'canvas'});
+  const dates=kline.map(k=>k.date);
+  const ohlc=kline.map(k=>[k.open,k.close,k.low,k.high]);
+  const vols=kline.map(k=>k.volume);
+
+  function ma(data,n){
+    const r=[];
+    for(let i=0;i<data.length;i++){
+      if(i<n-1){r.push(null);continue;}
+      let s=0;for(let j=0;j<n;j++)s+=data[i-j];
+      r.push(+(s/n).toFixed(2));
+    }
+    return r;
+  }
+  const closes=kline.map(k=>k.close);
+  const ma5=ma(closes,5),ma10=ma(closes,10),ma20=ma(closes,20);
+
+  const dk=window.matchMedia('(prefers-color-scheme:dark)').matches;
+  const txtC=dk?'#aaa':'#555';
+  const splitC=dk?'#333':'#eee';
+  const bgC=dk?'#222':'#fff';
+
+  chart.setOption({
+    backgroundColor:bgC,
+    animation:false,
+    tooltip:{
+      trigger:'axis',axisPointer:{type:'cross'},
+      backgroundColor:dk?'rgba(40,40,40,0.95)':'rgba(255,255,255,0.95)',
+      borderColor:dk?'#444':'#ddd',
+      textStyle:{color:dk?'#ddd':'#333',fontSize:12},
+      formatter:function(p){
+        if(!p||!p.length) return '';
+        const i=p[0].dataIndex;
+        const k=kline[i];
+        if(!k) return '';
+        const clr=k.close>=k.open?'#e24b4a':'#1d9e75';
+        return '<b>'+k.date+'</b><br/>'+
+          '开盘: <b>'+k.open+'</b><br/>'+
+          '收盘: <b style="color:'+clr+'">'+k.close+'</b><br/>'+
+          '最高: '+k.high+'<br/>最低: '+k.low;
+      }
+    },
+    axisPointer:{link:[{xAxisIndex:'all'}]},
+    grid:[{left:'8%',right:'3%',top:'3%',height:'58%'},{left:'8%',right:'3%',top:'72%',height:'16%'}],
+    xAxis:[
+      {type:'category',data:dates,gridIndex:0,axisLabel:{show:false},axisLine:{lineStyle:{color:splitC}},axisTick:{show:false},boundaryGap:true},
+      {type:'category',data:dates,gridIndex:1,axisLabel:{color:txtC,fontSize:10},axisLine:{lineStyle:{color:splitC}},axisTick:{show:false},boundaryGap:true}
+    ],
+    yAxis:[
+      {type:'value',gridIndex:0,position:'right',axisLabel:{color:txtC,fontSize:10},splitLine:{lineStyle:{color:splitC,type:'dashed'}},scale:true},
+      {type:'value',gridIndex:1,position:'right',axisLabel:{show:false},splitLine:{show:false}}
+    ],
+    dataZoom:[{type:'inside',xAxisIndex:[0,1],start:40,end:100}],
+    series:[
+      {name:'K线',type:'candlestick',xAxisIndex:0,yAxisIndex:0,data:ohlc,
+       itemStyle:{color:'#e24b4a',color0:'#1d9e75',borderColor:'#e24b4a',borderColor0:'#1d9e75'}},
+      {name:'MA5',type:'line',xAxisIndex:0,yAxisIndex:0,data:ma5,smooth:true,
+       lineStyle:{width:1},symbol:'none',itemStyle:{color:'#f5a623'}},
+      {name:'MA10',type:'line',xAxisIndex:0,yAxisIndex:0,data:ma10,smooth:true,
+       lineStyle:{width:1},symbol:'none',itemStyle:{color:'#378add'}},
+      {name:'MA20',type:'line',xAxisIndex:0,yAxisIndex:0,data:ma20,smooth:true,
+       lineStyle:{width:1},symbol:'none',itemStyle:{color:'#7f77dd'}},
+      {name:'成交额',type:'bar',xAxisIndex:1,yAxisIndex:1,data:vols,
+       itemStyle:{color:function(p){return p.dataIndex>=1&&kline[p.dataIndex].close>=kline[p.dataIndex-1].close?'rgba(226,75,74,0.6)':'rgba(29,158,117,0.6)';}}}
+    ]
+  });
+  window.addEventListener('resize',()=>chart.resize());
+}
+
+function renderKlineCharts(){
+  if(typeof echarts==='undefined') return;
+  // L4 个股K线
+  (D.layer4||[]).forEach(p=>{
+    _renderSingleKline(p.code,p.kline,'kline-l4-'+p.code,260);
+  });
+  // L5 决策K线
+  (D.layer5||[]).forEach(d=>{
+    _renderSingleKline(d.code,d.kline,'kline-'+d.code,320);
+  });
+}
+
 loadData();
 </script>
 </body>
