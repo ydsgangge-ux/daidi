@@ -192,15 +192,38 @@ def fetch_financial_data(code: str) -> dict:
 # 技术指标计算：DPO / MACD / RSI / BOLL / KDJ
 # ══════════════════════════════════════════════════════════════════════════════
 
+# ══════════════════════════════════════════════════════════════════════════════
+# K线数据缓存（避免同一只股票重复请求，东方财富接口不稳定）
+# ══════════════════════════════════════════════════════════════════════════════
+
+_kline_cache: Dict[str, pd.DataFrame] = {}
+
+def _get_kline_cached(code: str) -> Optional[pd.DataFrame]:
+    """获取个股日线行情（带缓存+3次重试），所有需要K线的函数统一调用此函数"""
+    import time
+    if code in _kline_cache:
+        return _kline_cache[code]
+    df = None
+    for attempt in range(3):
+        try:
+            df = ak.stock_zh_a_hist(symbol=code, period="daily",
+                                    start_date="20240101", adjust="qfq")
+            break
+        except Exception:
+            if attempt < 2:
+                time.sleep(2 * (attempt + 1))
+    if df is not None and len(df) > 0:
+        _kline_cache[code] = df
+    return df
+
+
 def compute_technical_indicators(code: str) -> dict:
     """
     从日线行情数据计算5大技术指标，给出综合判断。
     返回 { overall, summary, dpo, macd_*, rsi, boll_*, kdj_* }
     """
-    try:
-        df = ak.stock_zh_a_hist(symbol=code, period="daily",
-                                start_date="20240101", adjust="qfq")
-        if df is None or len(df) < 60:
+    df = _get_kline_cached(code)
+    if df is None or len(df) < 60:
             return {"overall": "NONE",
                     "summary": "数据不足60日，无法计算完整技术指标"}
 
@@ -334,7 +357,7 @@ def compute_technical_indicators(code: str) -> dict:
             "kdj_j": round(j_v, 1), "kdj_signal": kdj_tag,
         }
     except Exception as e:
-        return {"overall": "NONE", "summary": f"技术指标计算异常：{str(e)[:40]}"}
+        return {"overall": "NONE", "summary": "技术指标计算异常（数据不足或网络问题）"}
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -878,8 +901,7 @@ def get_timing_signal(code: str) -> dict:
     """获取个股量价信号（含重试和容错）"""
     result = {"signal": "NONE", "note": ""}
     try:
-        df = ak.stock_zh_a_hist(symbol=code, period="daily",
-                                start_date="20240101", adjust="qfq")
+        df = _get_kline_cached(code)
         if df is None or len(df) < 25:
             result["note"] = "行情数据不足25日，无法判定"
             return result
@@ -918,8 +940,7 @@ def get_timing_signal(code: str) -> dict:
 def get_support_level(code: str) -> float:
     """获取最近支撑位（近20日最低点）"""
     try:
-        df = ak.stock_zh_a_hist(symbol=code, period="daily",
-                                start_date="20240101", adjust="qfq")
+        df = _get_kline_cached(code)
         if df is not None and len(df) >= 20:
             df["最低"] = pd.to_numeric(df["最低"], errors="coerce")
             df["收盘"] = pd.to_numeric(df["收盘"], errors="coerce")
