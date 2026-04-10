@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>大模型配置器</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei','Helvetica Neue',sans-serif;
+     background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;
+     display:flex;align-items:center;justify-content:center;padding:20px;}
+.card{background:#fff;border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,0.3);
+      max-width:560px;width:100%;padding:40px 36px;position:relative;overflow:hidden;}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;
+              background:linear-gradient(90deg,#667eea,#764ba2,#f093fb);}
+
+/* 标题 */
+.logo{text-align:center;margin-bottom:32px;}
+.logo-icon{font-size:48px;margin-bottom:8px;display:block;}
+.logo h1{font-size:24px;color:#1a1a2e;font-weight:700;margin-bottom:4px;}
+.logo p{font-size:14px;color:#888;line-height:1.6;}
+
+/* 状态指示 */
+.status{text-align:center;padding:12px 16px;border-radius:12px;margin-bottom:24px;
+        font-size:16px;font-weight:600;transition:.3s;}
+.status.ok{background:#e8f5e9;color:#2e7d32;}
+.status.err{background:#ffebee;color:#c62828;}
+.status.idle{background:#f5f5f5;color:#999;}
+.status-dot{display:inline-block;width:10px;height:10px;border-radius:50%;
+            margin-right:8px;vertical-align:middle;}
+.status.ok .status-dot{background:#4caf50;animation:pulse 1.5s infinite;}
+.status.err .status-dot{background:#f44336;}
+.status.idle .status-dot{background:#ccc;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+
+/* 表单 */
+.group{margin-bottom:24px;}
+.group-label{display:block;font-size:18px;font-weight:700;color:#1a1a2e;margin-bottom:10px;}
+.group-hint{font-size:13px;color:#999;margin-top:4px;line-height:1.5;}
+.group-hint a{color:#667eea;text-decoration:none;}
+
+/* 品牌选择 */
+.brand-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
+.brand-btn{display:flex;align-items:center;gap:10px;padding:14px 16px;border:2px solid #e0e0e0;
+           border-radius:14px;cursor:pointer;transition:.2s;background:#fff;font-size:15px;
+           font-weight:600;color:#333;text-align:left;}
+.brand-btn:hover{border-color:#667eea;background:#f8f7ff;}
+.brand-btn.on{border-color:#667eea;background:#eef0ff;color:#667eea;}
+.brand-btn .emoji{font-size:24px;flex-shrink:0;width:32px;text-align:center;}
+.brand-btn .bname{font-size:15px;}
+.brand-btn .bsub{font-size:11px;color:#999;font-weight:400;margin-top:2px;}
+
+/* 输入框 */
+.input-wrap{position:relative;}
+.input{width:100%;padding:14px 16px;border:2px solid #e0e0e0;border-radius:12px;
+        font-size:17px;color:#333;outline:none;transition:.2s;background:#fafafa;}
+.input:focus{border-color:#667eea;background:#fff;}
+.input::placeholder{color:#ccc;}
+.input.mono{font-family:'Consolas','Monaco','Courier New',monospace;font-size:15px;letter-spacing:.5px;}
+.toggle-pw{position:absolute;right:12px;top:50%;transform:translateY(-50%);
+           background:none;border:none;font-size:20px;cursor:pointer;padding:4px;color:#999;}
+
+/* 模型选择 */
+.model-list{display:flex;flex-direction:column;gap:8px;}
+.model-opt{display:flex;align-items:center;gap:10px;padding:12px 14px;border:2px solid #e0e0e0;
+           border-radius:12px;cursor:pointer;transition:.2s;background:#fff;}
+.model-opt:hover{border-color:#667eea;background:#f8f7ff;}
+.model-opt.on{border-color:#667eea;background:#eef0ff;}
+.model-opt .radio{width:20px;height:20px;border-radius:50%;border:2px solid #ccc;flex-shrink:0;
+                  display:flex;align-items:center;justify-content:center;transition:.2s;}
+.model-opt.on .radio{border-color:#667eea;}
+.model-opt.on .radio::after{content:'';width:10px;height:10px;border-radius:50%;background:#667eea;}
+.model-opt .mname{font-size:16px;font-weight:600;color:#333;}
+.model-opt .mdesc{font-size:12px;color:#999;margin-top:2px;}
+
+/* 按钮 */
+.btn-row{display:flex;gap:12px;margin-top:32px;}
+.btn{flex:1;padding:16px;border:none;border-radius:14px;font-size:18px;font-weight:700;
+     cursor:pointer;transition:.2s;text-align:center;}
+.btn:disabled{opacity:.5;cursor:not-allowed;}
+.btn-primary{background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;}
+.btn-primary:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 6px 20px rgba(102,126,234,0.4);}
+.btn-secondary{background:#f5f5f5;color:#666;border:2px solid #e0e0e0;}
+.btn-secondary:hover:not(:disabled){background:#eee;}
+.btn .spinner{display:inline-block;width:18px;height:18px;border:3px solid rgba(255,255,255,0.3);
+              border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* 自定义输入 */
+.custom-row{display:flex;gap:8px;margin-bottom:8px;}
+.custom-row .input{flex:1;}
+
+/* 隐藏区 */
+.hidden{display:none !important;}
+
+/* 成功弹窗 */
+.toast{position:fixed;top:30px;left:50%;transform:translateX(-50%) translateY(-100px);
+       background:#fff;padding:16px 28px;border-radius:14px;box-shadow:0 10px 40px rgba(0,0,0,0.2);
+       font-size:17px;font-weight:700;color:#2e7d32;z-index:999;transition:.4s;display:flex;
+       align-items:center;gap:10px;}
+.toast.show{transform:translateX(-50%) translateY(0);}
+.toast .check{font-size:24px;}
+
+/* 帮助折叠 */
+.help-toggle{display:block;text-align:center;margin-top:16px;font-size:14px;color:#667eea;
+             cursor:pointer;text-decoration:none;}
+.help-toggle:hover{text-decoration:underline;}
+.help-box{margin-top:12px;padding:16px;background:#f8f7ff;border-radius:12px;
+          font-size:13px;color:#666;line-height:1.8;}
+.help-box strong{color:#333;}
+.help-box ol{padding-left:20px;margin-top:8px;}
+.help-box li{margin-bottom:4px;}
+
+/* 步骤指示 */
+.steps{display:flex;gap:4px;margin-bottom:24px;}
+.step-dot{flex:1;height:4px;border-radius:2px;background:#e0e0e0;transition:.3s;}
+.step-dot.done{background:#667eea;}
+.step-dot.active{background:linear-gradient(90deg,#667eea,#764ba2);}
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="logo">
+    <span class="logo-icon">🤖</span>
+    <h1>大模型配置器</h1>
+    <p>三步完成配置，开始使用 AI 分析</p>
+  </div>
+
+  <div class="steps" id="steps">
+    <div class="step-dot active" id="sd1"></div>
+    <div class="step-dot" id="sd2"></div>
+    <div class="step-dot" id="sd3"></div>
+  </div>
+
+  <div class="status idle" id="statusBar">
+    <span class="status-dot"></span>
+    <span id="statusText">请先选择大模型品牌</span>
+  </div>
+
+  <!-- 第一步：选择品牌 -->
+  <div id="step1">
+    <div class="group">
+      <label class="group-label">第一步：选择大模型品牌</label>
+      <div class="brand-grid" id="brandGrid"></div>
+    </div>
+  </div>
+
+  <!-- 第二步：填写配置 -->
+  <div id="step2" class="hidden">
+    <div class="group">
+      <label class="group-label">第二步：填写配置</label>
+
+      <div class="group" style="margin-top:16px;">
+        <label class="group-label" style="font-size:15px;">API Key（密钥）</label>
+        <div class="input-wrap">
+          <input type="password" class="input mono" id="apiKey" placeholder="粘贴你的 API Key">
+          <button class="toggle-pw" onclick="toggleKeyVis()" id="togglePw">👁</button>
+        </div>
+        <div class="group-hint" id="keyHint"></div>
+      </div>
+
+      <div class="group" style="margin-top:16px;">
+        <label class="group-label" style="font-size:15px;">选择模型</label>
+        <div class="model-list" id="modelList"></div>
+      </div>
+
+      <div class="group" id="customGroup" class="hidden" style="margin-top:16px;">
+        <label class="group-label" style="font-size:15px;">自定义接口地址</label>
+        <input type="text" class="input mono" id="customUrl" placeholder="https://api.example.com/v1">
+      </div>
+
+      <div class="group" id="customModelGroup" class="hidden" style="margin-top:16px;">
+        <label class="group-label" style="font-size:15px;">自定义模型名称</label>
+        <input type="text" class="input" id="customModel" placeholder="例如：my-model-v1">
+      </div>
+    </div>
+  </div>
+
+  <!-- 按钮 -->
+  <div class="btn-row">
+    <button class="btn btn-secondary" id="btnBack" style="display:none;" onclick="goBack()">← 返回</button>
+    <button class="btn btn-secondary" id="btnTest" style="display:none;" onclick="testConn()">测试连接</button>
+    <button class="btn btn-primary" id="btnNext" onclick="nextStep()">下一步 →</button>
+    <button class="btn btn-primary" id="btnSave" style="display:none;" onclick="saveConfig()">保存配置 ✓</button>
+  </div>
+
+  <a class="help-toggle" id="helpToggle" onclick="toggleHelp()">如何获取 API Key？点我查看教程</a>
+  <div class="help-box hidden" id="helpBox">
+    <div id="helpContent"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="check">✅</span><span id="toastText"></span></div>
+
+<script>
+let providers = {};
+let currentProvider = '';
+let currentModel = '';
+let step = 1;
+
+// ── 加载品牌列表 ──────────────────────────────────────────────────────────
+async function loadProviders() {
+  try {
+    const r = await fetch('/api/providers');
+    providers = await r.json();
+    renderBrands();
+  } catch(e) {
+    // 内嵌 fallback
+    providers = {"deepseek":{"name":"DeepSeek","emoji":"🌊","base_url":"https://api.deepseek.com",
+      "models":["deepseek-reasoner","deepseek-chat"],
+      "model_labels":{"deepseek-reasoner":"DeepSeek-R1 推理（深度思考）","deepseek-chat":"DeepSeek-V3 对话"},
+      "key_prefix":"sk-","help_url":"https://platform.deepseek.com/api_keys"}};
+    renderBrands();
+  }
+}
+
+function renderBrands() {
+  const grid = document.getElementById('brandGrid');
+  const emojis = {deepseek:'🌊',openai:'🧠',qwen:'☁️',glm:'🔮',kimi:'🌙',siliconflow:'⚡',custom:'⚙️'};
+  grid.innerHTML = Object.entries(providers).map(([id, p]) => `
+    <div class="brand-btn" onclick="selectBrand('${id}')" id="brand-${id}">
+      <span class="emoji">${emojis[id]||'🤖'}</span>
+      <div>
+        <div class="bname">${p.name}</div>
+        ${p.models&&p.models.length?`<div class="bsub">${p.models.length} 个模型可选</div>`:'<div class="bsub">自定义配置</div>'}
+      </div>
+    </div>
+  `).join('');
+}
+
+// ── 选择品牌 ──────────────────────────────────────────────────────────────
+function selectBrand(id) {
+  currentProvider = id;
+  const p = providers[id];
+
+  // 高亮
+  document.querySelectorAll('.brand-btn').forEach(b => b.classList.remove('on'));
+  const el = document.getElementById('brand-' + id);
+  if (el) el.classList.add('on');
+
+  // 显示第二步
+  document.getElementById('step1').style.display = 'none';
+  document.getElementById('step2').classList.remove('hidden');
+  document.getElementById('btnNext').style.display = 'none';
+  document.getElementById('btnBack').style.display = '';
+  document.getElementById('btnTest').style.display = '';
+  document.getElementById('btnSave').style.display = '';
+  step = 2;
+  updateSteps();
+
+  // Key 提示
+  const hint = document.getElementById('keyHint');
+  if (p.help_url) {
+    hint.innerHTML = `获取密钥：<a href="${p.help_url}" target="_blank">${p.help_url} ↗</a>`;
+  } else {
+    hint.innerHTML = '请输入你购买的大模型服务提供的 API Key';
+  }
+
+  // 模型列表
+  const ml = document.getElementById('modelList');
+  if (id === 'custom') {
+    document.getElementById('customGroup').style.display = '';
+    document.getElementById('customModelGroup').style.display = '';
+    ml.innerHTML = '<div style="padding:12px;color:#999;font-size:14px;">请在下方填写自定义接口地址和模型名称</div>';
+    currentModel = '';
+  } else {
+    document.getElementById('customGroup').style.display = 'none';
+    document.getElementById('customModelGroup').style.display = 'none';
+    ml.innerHTML = p.models.map((m, i) => `
+      <div class="model-opt ${i===0?'on':''}" onclick="selectModel('${m}',this)" data-model="${m}">
+        <div class="radio"></div>
+        <div>
+          <div class="mname">${m}</div>
+          <div class="mdesc">${p.model_labels[m]||''}</div>
+        </div>
+      </div>
+    `).join('');
+    currentModel = p.models[0] || '';
+  }
+
+  // 帮助内容
+  const hc = document.getElementById('helpContent');
+  const helps = {
+    deepseek: `<strong>DeepSeek 获取 API Key：</strong><ol>
+      <li>访问 <a href="https://platform.deepseek.com" target="_blank">platform.deepseek.com</a></li>
+      <li>注册/登录账号（支持手机号）</li>
+      <li>点击左侧菜单「API Keys」</li>
+      <li>点击「创建 API Key」，复制生成的密钥</li>
+      <li>新用户注册通常送 500 万 token 免费额度</li></ol>`,
+    openai: `<strong>OpenAI 获取 API Key：</strong><ol>
+      <li>访问 <a href="https://platform.openai.com" target="_blank">platform.openai.com</a></li>
+      <li>注册/登录（需要国外手机号或邮箱）</li>
+      <li>点击右上角头像 → API Keys → Create new key</li>
+      <li>复制 Key（只显示一次，务必保存）</li></ol>`,
+    qwen: `<strong>通义千问获取 API Key：</strong><ol>
+      <li>访问 <a href="https://dashscope.console.aliyun.com" target="_blank">阿里云百炼平台</a></li>
+      <li>使用阿里云账号登录</li>
+      <li>点击「API-KEY 管理」→ 创建 API Key</li>
+      <li>新用户有免费额度</li></ol>`,
+    glm: `<strong>智谱 GLM 获取 API Key：</strong><ol>
+      <li>访问 <a href="https://open.bigmodel.cn" target="_blank">open.bigmodel.cn</a></li>
+      <li>注册/登录（支持手机号）</li>
+      <li>进入「API 密钥」页面，创建密钥</li>
+      <li>GLM-4-Flash 模型免费使用</li></ol>`,
+    kimi: `<strong>Kimi 获取 API Key：</strong><ol>
+      <li>访问 <a href="https://platform.moonshot.cn" target="_blank">platform.moonshot.cn</a></li>
+      <li>注册/登录</li>
+      <li>进入 API Key 管理页面创建密钥</li></ol>`,
+    siliconflow: `<strong>硅基流动获取 API Key：</strong><ol>
+      <li>访问 <a href="https://cloud.siliconflow.cn" target="_blank">cloud.siliconflow.cn</a></li>
+      <li>注册/登录</li>
+      <li>点击「API 密钥」→ 新建密钥</li>
+      <li>多家大模型可选，部分免费</li></ol>`,
+    custom: `<strong>自定义配置：</strong><p>适用于任何兼容 OpenAI 接口格式的大模型服务。</p><ol>
+      <li>填写服务商提供的 API 接口地址（Base URL）</li>
+      <li>填写 API Key</li>
+      <li>填写模型名称</li></ol>`
+  };
+  hc.innerHTML = helps[id] || helps.custom;
+
+  setStatus('idle', '请填写 API Key 并选择模型');
+}
+
+// ── 选择模型 ──────────────────────────────────────────────────────────────
+function selectModel(model, el) {
+  currentModel = model;
+  document.querySelectorAll('.model-opt').forEach(o => o.classList.remove('on'));
+  if (el) el.classList.add('on');
+}
+
+// ── 返回 ──────────────────────────────────────────────────────────────────
+function goBack() {
+  step = 1;
+  document.getElementById('step1').style.display = '';
+  document.getElementById('step2').classList.add('hidden');
+  document.getElementById('btnNext').style.display = '';
+  document.getElementById('btnBack').style.display = 'none';
+  document.getElementById('btnTest').style.display = 'none';
+  document.getElementById('btnSave').style.display = 'none';
+  updateSteps();
+  setStatus('idle', '请先选择大模型品牌');
+}
+
+// ── 下一步（品牌→配置） ──────────────────────────────────────────────────
+function nextStep() {
+  if (!currentProvider) {
+    setStatus('err', '请先选择一个品牌');
+    return;
+  }
+  selectBrand(currentProvider);
+}
+
+// ── 切换 Key 可见 ────────────────────────────────────────────────────────
+let keyVisible = false;
+function toggleKeyVis() {
+  keyVisible = !keyVisible;
+  const inp = document.getElementById('apiKey');
+  inp.type = keyVisible ? 'text' : 'password';
+  document.getElementById('togglePw').textContent = keyVisible ? '🙈' : '👁';
+}
+
+// ── 测试连接 ──────────────────────────────────────────────────────────────
+async function testConn() {
+  const btn = document.getElementById('btnTest');
+  const key = document.getElementById('apiKey').value.trim();
+  const p = providers[currentProvider] || {};
+
+  let base_url = currentProvider === 'custom' ? document.getElementById('customUrl').value.trim() : (p.base_url || '');
+  let model = currentProvider === 'custom' ? document.getElementById('customModel').value.trim() : currentModel;
+
+  if (!key) { setStatus('err', '请输入 API Key'); return; }
+  if (!base_url) { setStatus('err', '请填写接口地址'); return; }
+  if (!model) { setStatus('err', '请选择或填写模型名称'); return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 测试中…';
+  setStatus('idle', '正在连接，请稍候…');
+
+  try {
+    const r = await fetch('/api/test', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({api_key: key, base_url: base_url, model: model})
+    });
+    const data = await r.json();
+    if (data.ok) {
+      setStatus('ok', `连接成功！模型: ${data.model}，回复: "${data.response}"`);
+    } else {
+      setStatus('err', data.message || '连接失败');
+    }
+  } catch(e) {
+    setStatus('err', '网络错误，请检查配置服务器是否运行');
+  }
+
+  btn.disabled = false;
+  btn.textContent = '测试连接';
+}
+
+// ── 保存配置 ──────────────────────────────────────────────────────────────
+async function saveConfig() {
+  const btn = document.getElementById('btnSave');
+  const key = document.getElementById('apiKey').value.trim();
+  const p = providers[currentProvider] || {};
+
+  let base_url = currentProvider === 'custom' ? document.getElementById('customUrl').value.trim() : (p.base_url || '');
+  let model = currentProvider === 'custom' ? document.getElementById('customModel').value.trim() : currentModel;
+
+  if (!key) { setStatus('err', '请输入 API Key'); return; }
+  if (!base_url) { setStatus('err', '请填写接口地址'); return; }
+  if (!model) { setStatus('err', '请选择或填写模型名称'); return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 保存中…';
+
+  try {
+    const r = await fetch('/api/config', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        api_key: key, base_url: base_url, model: model, provider: currentProvider
+      })
+    });
+    const data = await r.json();
+    if (data.ok) {
+      showToast('配置已保存，可以开始使用了！');
+      setStatus('ok', '配置已保存成功！可以关闭此页面。');
+      step = 3;
+      updateSteps();
+    } else {
+      setStatus('err', data.message || '保存失败');
+    }
+  } catch(e) {
+    setStatus('err', '保存失败，请重试');
+  }
+
+  btn.disabled = false;
+  btn.textContent = '保存配置 ✓';
+}
+
+// ── 加载已保存的配置 ──────────────────────────────────────────────────────
+async function loadExisting() {
+  try {
+    const r = await fetch('/api/config');
+    const cfg = await r.json();
+    if (cfg.provider && providers[cfg.provider]) {
+      // 恢复品牌
+      currentProvider = cfg.provider;
+      currentModel = cfg.model || '';
+      selectBrand(cfg.provider);
+      // 恢复 Key
+      if (cfg.api_key_masked) {
+        document.getElementById('apiKey').value = cfg.api_key_masked;
+        document.getElementById('apiKey').dataset.realKey = cfg.api_key_masked;
+      }
+      // 恢复模型选中
+      if (cfg.model && cfg.provider !== 'custom') {
+        document.querySelectorAll('.model-opt').forEach(o => {
+          o.classList.toggle('on', o.dataset.model === cfg.model);
+        });
+      }
+      setStatus('ok', `已加载配置: ${providers[cfg.provider]?.name||''} / ${cfg.model||''}`);
+      step = 2;
+      updateSteps();
+    }
+  } catch(e) {}
+}
+
+// ── 状态栏 ──────────────────────────────────────────────────────────────
+function setStatus(type, text) {
+  const bar = document.getElementById('statusBar');
+  bar.className = 'status ' + type;
+  document.getElementById('statusText').textContent = text;
+}
+
+// ── 步骤指示 ──────────────────────────────────────────────────────────────
+function updateSteps() {
+  for (let i = 1; i <= 3; i++) {
+    const dot = document.getElementById('sd' + i);
+    dot.className = 'step-dot' + (i < step ? ' done' : '') + (i === step ? ' active' : '');
+  }
+}
+
+// ── Toast ──────────────────────────────────────────────────────────────────
+function showToast(text) {
+  const t = document.getElementById('toast');
+  document.getElementById('toastText').textContent = text;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ── 帮助折叠 ──────────────────────────────────────────────────────────────
+function toggleHelp() {
+  document.getElementById('helpBox').classList.toggle('hidden');
+}
+
+// ── 启动 ──────────────────────────────────────────────────────────────────
+loadProviders().then(() => loadExisting());
+</script>
+</body>
+</html>

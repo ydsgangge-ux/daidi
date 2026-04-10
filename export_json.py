@@ -4,6 +4,7 @@ JSON 导出器
 用法：python export_json.py  → 生成 web/dashboard.json
 """
 import json, sys, os, io, warnings, traceback, logging
+import pandas as pd
 from datetime import datetime
 warnings.filterwarnings("ignore")
 
@@ -99,8 +100,8 @@ def _extract_kline(code: str, days: int = 90) -> list:
                     "low": round(float(pd.to_numeric(row.get("最低", 0), errors="coerce") or 0), 2),
                     "volume": round(float(pd.to_numeric(row.get("成交量", 0), errors="coerce") or 0), 0),
                 })
-    except Exception:
-        pass
+    except Exception as e:
+        _log.warning(f"K线提取失败 [{code}]: {e}")
     return kline
 
 
@@ -132,6 +133,7 @@ def profile_to_dict(p) -> dict:
             "profit_yoy": p.profit_yoy,
             "deduct_yoy": p.net_profit_deducted_yoy,
             "debt_ratio": p.debt_ratio,
+            "cash_flow_ratio": getattr(p, "cash_to_profit_ratio", None),
         },
         "tech_summary":    getattr(p, "tech_summary", ""),
         "tech_overall":    getattr(p, "tech_overall", ""),
@@ -157,6 +159,11 @@ def decision_to_dict(d, capital: float) -> dict:
         "stop_loss_pct":   d.stop_loss_pct,
         "position_pct":    d.actual_position_pct,
         "first_batch_pct": d.first_batch_pct,
+        "current_price":   getattr(d, "current_price", 0),
+        "first_batch_lots": getattr(d, "first_batch_lots", 0),
+        "first_batch_cost": getattr(d, "first_batch_cost", 0),
+        "stop_loss_price":  getattr(d, "stop_loss_price", 0),
+        "max_loss_amount":  getattr(d, "max_loss_amount", 0),
         "first_batch_amt": round(capital * d.first_batch_pct / 100, 0),
         "verdict":         d.verdict,
         "reason":          d.reason,
@@ -164,6 +171,9 @@ def decision_to_dict(d, capital: float) -> dict:
         "tech_summary":    getattr(d, "tech_summary", ""),
         "tech_overall":    getattr(d, "tech_overall", ""),
         "deep_financial":  getattr(d, "deep_financial", ""),
+        "pe":              getattr(d, "pe", 0),
+        "cash_flow_ratio": getattr(d, "cash_flow_ratio", None),
+        "debt_ratio":      getattr(d, "debt_ratio", 0),
         "kline":           _extract_kline(d.code),
     }
 
@@ -178,8 +188,9 @@ def run_export(capital: float = 1_000_000,
     print(f"[{datetime.now().strftime('%H:%M:%S')}] 开始六层分析...")
 
     if not is_available():
-        print("  [WARN] DeepSeek API Key 未配置，趋势判定和产业链分析将使用规则兜底")
-        print("         配置方法：在项目根目录创建 .env 文件，写入 DEEPSEEK_API_KEY=sk-xxx")
+        print("  [WARN] 大模型 API Key 未配置，趋势判定和产业链分析将使用规则兜底")
+        print("         快速配置：python setup_llm.py （图形化配置器，支持 DeepSeek/OpenAI/通义等）")
+        print("         或手动创建 .env 文件，写入 DEEPSEEK_API_KEY=sk-xxx")
     else:
         print("  DeepSeek API 已就绪")
 
@@ -273,7 +284,8 @@ def run_export(capital: float = 1_000_000,
 
         decisions = run_layer5(
             profiles, l0_status.level != "RED",
-            l1.score, l2.score, l3_active_names, env
+            l1.score, l2.score, l3_active_names, env,
+            capital_total=capital
         )
     except Exception as e:
         print(f"  [ERROR] Layer 4/5 失败: {e}（详情见 logs/error.log）")

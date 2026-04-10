@@ -6,11 +6,44 @@
 
 从宏观风险到个股仓位，六层递进式筛选，结合实时数据采集 + LLM 智能分析，自动生成投资决策报告。先立于不败之地，再等待市场给出可胜之机。
 
+<table>
+<tr>
+<td width="50%"><img src="docs/images/dashboard_overview.png" alt="Web 仪表盘总览"></td>
+<td width="50%"><img src="docs/images/config.png" alt="大模型配置器"></td>
+</tr>
+<tr>
+<td align="center"><b>Web 可视化仪表盘</b> — 六层数据一屏呈现</td>
+<td align="center"><b>大模型配置器</b> — 三步完成，支持 7 大品牌</td>
+</tr>
+</table>
+
 ---
 
 ## 快速开始
 
-### 1. 安装依赖
+> **不想碰命令行？直接双击即可：**
+> - **Windows**：双击 `start.bat`
+> - **macOS**：双击 `start.command`（首次需右键→打开→确认）
+>
+> 脚本会自动安装依赖 → 运行分析 → 打开浏览器查看结果。
+
+### 方式一：一键启动（推荐新手）
+
+| 平台 | 操作 |
+|------|------|
+| **Windows** | 双击 `start.bat` |
+| **macOS** | 双击 `start.command`（首次需要：右键→打开） |
+| **Linux** | 终端运行 `chmod +x start.command && ./start.command` |
+
+脚本自动完成以下步骤：
+1. 检测 Python 环境（未安装则提示下载链接）
+2. 安装/更新依赖包
+3. 运行六层分析，生成数据
+4. 启动 Web 服务器，自动打开浏览器
+
+### 方式二：手动安装
+
+#### 1. 安装依赖
 
 **Windows / macOS / Linux 通用：**
 
@@ -21,7 +54,23 @@ pip install -r requirements.txt
 > 需要 Python 3.9+。如果系统提示 `pip` 不是最新版本，可先运行 `pip install --upgrade pip`。
 > macOS 用户如提示权限错误，请使用 `pip3 install -r requirements.txt`。
 
-### 2. 配置 LLM（产业链分析 + 趋势判断需要）
+### 2. 配置大模型（产业链分析 + 趋势判断需要）
+
+**方式一：图形化配置器（推荐，操作最简单）**
+
+```bash
+python setup_llm.py
+```
+
+自动打开浏览器，进入可视化配置页面。三步完成：
+
+1. **选择品牌** — DeepSeek / OpenAI / 通义千问 / 智谱GLM / Kimi / 硅基流动 / 自定义
+2. **粘贴 API Key** — 选择模型
+3. **测试连接 → 保存**
+
+配置保存在 `llm_config.json`，启动分析自动读取。
+
+**方式二：手动创建 `.env` 文件**
 
 在项目根目录创建 `.env` 文件：
 
@@ -60,7 +109,7 @@ python export_json.py
 
 生成 `web/dashboard.json`，包含全部六层数据 + 国际信号 + 趋势判定。双击 `web/index.html` 即可查看 Web 面板。
 
-**方式三：一键批处理**
+**方式三：定时自动执行（进阶）**
 
 - **Windows**：双击 `run_daily.bat`，或配合「任务计划程序」每天定时执行。
 - **macOS / Linux**：
@@ -192,6 +241,7 @@ python test_all.py
 |------|------|---------|
 | 终端报告 | Rich 美化的六层分析报告 | `python main.py` |
 | `reports/report_*.txt` | 文本报告存档 | `python main.py` 自动保存 |
+| `web/config.html` | 大模型配置页面 | `python setup_llm.py` 打开 |
 | `web/dashboard.json` | 结构化 JSON 数据 | `python export_json.py` |
 | `web/index.html` | Web 可视化面板 | 双击打开，读取 JSON |
 | `logs/` | 运行日志 | 自动生成 |
@@ -246,11 +296,28 @@ python test_all.py
 
 ### LLM 模型切换
 
+**方式一：图形化配置器**
+```bash
+python setup_llm.py
+```
+
+**方式二：编辑 `llm_config.json`**
+```json
+{
+  "provider": "deepseek",
+  "api_key": "sk-xxx",
+  "base_url": "https://api.deepseek.com",
+  "model": "deepseek-reasoner"
+}
+```
+
+**方式三：代码级修改**
+
 编辑 `llm_client.py`：
 
 ```python
-_MODEL = "deepseek-chat"     # 便宜快速，适合日常
-# _MODEL = "deepseek-reasoner"  # 深度推理，更精准但更慢
+_MODEL = "deepseek-reasoner"   # 深度推理，更精准
+# _MODEL = "deepseek-chat"     # 便宜快速，适合日常
 ```
 
 ---
@@ -268,14 +335,18 @@ market_system/
 ├── layer45_stocks.py          # L4 企业筛选 + L5 个股确认
 ├── international_signals.py   # 国际信号源采集（新闻+指数）
 ├── trend_judge.py             # 趋势综合判定（LLM）
-├── llm_client.py              # DeepSeek API 客户端
+├── llm_client.py              # 大模型客户端（多品牌支持）
 ├── test_all.py                # 逐层测试脚本
 ├── run_daily.bat              # Windows 一键运行
 ├── run_daily.sh               # macOS / Linux 一键运行
 ├── requirements.txt            # Python 依赖清单（pip install -r）
-├── .env                       # API Key 配置（需自行创建）
+├── setup_llm.py              # 大模型图形化配置器（一键配置）
+├── llm_config.json            # 大模型配置（配置器自动生成）
+├── .env                       # API Key 配置（旧方式，可选）
 ├── web/
 │   ├── index.html             # Web 面板入口
+│   ├── config.html            # 大模型配置页面（setup_llm.py 调用）
+│   ├── echarts.min.js          # ECharts 本地副本
 │   ├── dashboard.json         # 最新分析数据
 │   └── dashboard_standalone.html
 ├── reports/                   # 文本报告存档

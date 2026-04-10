@@ -1,6 +1,6 @@
 """
-Layer 4 — 头部企业筛选（动态产业链→成分股 + 自动化财务评分）
-Layer 5 — 个股最终确认 + 仓位计算
+Layer 4 — 头部企业筛选（LLM分析产业链 + 自动化财务评分）
+Layer 5 — 个股最终确认 + 仓位计算（A股手数）
 """
 import akshare as ak
 import pandas as pd
@@ -8,7 +8,7 @@ import numpy as np
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict
 from datetime import datetime
-import warnings, re
+import warnings, re, json
 warnings.filterwarnings("ignore")
 
 
@@ -685,6 +685,55 @@ def fetch_chain_stocks(chain_name: str, max_per_concept: int = 30) -> List[dict]
     return stocks
 
 
+def llm_fetch_chain_stocks(chain_name: str) -> List[dict]:
+    """
+    用 LLM 分析产业链的头部企业，返回 [{"code": "300308", "name": "中际旭创"}, ...]
+    fallback 方案：akshare 概念板块抓取失败时使用
+    """
+    try:
+        from llm_client import chat_json
+        system = (
+            "你是一位资深A股投研分析师。请分析指定产业链的A股头部企业。\n"
+            "要求：\n"
+            "1. 只返回该产业链核心环节的龙头/头部企业（每个环节最多2家）\n"
+            "2. 代码必须是6位数字的A股代码（沪深主板+创业板+科创板）\n"
+            "3. 不要包含ST、退市股\n"
+            "4. 总共返回5-10家\n"
+            "返回JSON格式：{\"stocks\": [{\"code\": \"300308\", \"name\": \"中际旭创\", \"node\": \"光模块\"}, ...]}"
+        )
+        user = f"请分析「{chain_name}」产业链的A股头部企业，列出各环节龙头公司。"
+        result = chat_json(system, user, temperature=0.2)
+        if result and "stocks" in result:
+            stocks = []
+            seen = set()
+            for s in result["stocks"]:
+                code = str(s.get("code", "")).strip()
+                name = str(s.get("name", "")).strip()
+                node = str(s.get("node", "核心")).strip()
+                if not code or not name or not re.match(r'^\d{6}$', code):
+                    continue
+                if code in seen:
+                    continue
+                seen.add(code)
+                stocks.append({"code": code, "name": name, "node": node, "chain": chain_name})
+            if stocks:
+                return stocks
+    except Exception as e:
+        print(f"      → LLM分析异常: {e}")
+    return []
+
+
+def _get_current_price(code: str) -> Optional[float]:
+    """获取个股最新收盘价"""
+    try:
+        df = _get_kline_cached(code)
+        if df is not None and len(df) > 0:
+            return float(pd.to_numeric(df["收盘"].iloc[-1], errors="coerce"))
+    except Exception:
+        pass
+    return None
+
+
 def score_dynamic_company(code: str, name: str, chain: str,
                           fin_data: dict) -> Optional[CompanyProfile]:
     """
@@ -701,13 +750,14 @@ def score_dynamic_company(code: str, name: str, chain: str,
     pe = fin_data.get("pe")
     mktcap = fin_data.get("mktcap", "")
 
-    # ── 市值门槛：低于50亿的跳过 ──
+    # ── 市值门槛：低于30亿的跳过 ──
+    has_mktcap = True
     try:
         cap_val = float(str(mktcap).replace("亿", "").replace(",", ""))
-        if cap_val < 50:
+        if cap_val < 30:
             return None
     except (ValueError, TypeError):
-        return None  # 无市值数据，跳过
+        has_mktcap = False  # 无市值数据，不跳过，给默认分数
 
     score = 0
     green_flags: list = []
@@ -776,8 +826,13 @@ def score_dynamic_company(code: str, name: str, chain: str,
             red_flags.append(f"资产负债率{debt:.1f}%偏高")
 
     # ── 特殊红线 ──
-    verdict = "REAL"
-    note = ""
+    # 如果几乎没有财务数据（score仍为0），给基础分并标记待验证
+    if score == 0:
+        score = 45  # 给予基础分，不直接丢弃
+        verdict = "WATCH"
+        note = "LLM识别的头部企业，财务数据待补充验证"
+        red_flags.append("财务数据不完整，建议人工核实")
+
     if score >= 70:
         verdict = "REAL"
         note = "财务指标优秀"
@@ -830,7 +885,7 @@ def run_layer4(codes: List[str] = None,
     """
     Layer 4: 个股筛选
 
-    - 提供 active_chains 时：从 akshare 概念板块动态抓取成分股 + 合并静态库
+    - 提供 active_chains 时：LLM分析产业链头部企业 + akshare 概念板块补充 + 静态库
     - 仅提供 codes 时：保持原逻辑，从静态 COMPANY_DB 中筛选指定代码
     - 均不提供：使用静态 COMPANY_DB 全量
     """
@@ -861,30 +916,86 @@ def run_layer4(codes: List[str] = None,
             results.append(p)
             processed_codes.add(code)
 
-    # ── 2. 动态抓取激活产业链的成分股 ──
+    # ── 2. LLM分析激活产业链头部企业 ──
     if active_chains:
         for chain_name in active_chains:
-            print(f"    ↳ 动态抓取 [{chain_name}] 成分股...")
-            dyn_stocks = fetch_chain_stocks(chain_name)
-            if not dyn_stocks:
-                print(f"      → 未找到相关概念板块，跳过")
-                continue
-
-            # 先用 akshare 批量获取基本信息过滤
-            kept = 0
-            for stock in dyn_stocks:
-                code = stock["code"]
-                if code in processed_codes:
+            print(f"    ↳ LLM分析 [{chain_name}] 头部企业...")
+            llm_stocks = llm_fetch_chain_stocks(chain_name)
+            if llm_stocks:
+                kept = 0
+                for stock in llm_stocks:
+                    code = stock["code"]
+                    if code in processed_codes:
+                        continue
+                    fin_data = fetch_financial_data(code)
+                    p = score_dynamic_company(
+                        code, stock["name"], chain_name, fin_data
+                    )
+                    if p is not None:
+                        # LLM 分析的标的附带节点信息
+                        p.node = stock.get("node", "核心")
+                        results.append(p)
+                        processed_codes.add(code)
+                        kept += 1
+                print(f"      → LLM识别 {len(llm_stocks)} 只，通过财务筛选 {kept} 只")
+            else:
+                # LLM 失败，回退到 akshare 概念板块
+                print(f"      → LLM未返回结果，回退到 akshare 抓取...")
+                dyn_stocks = fetch_chain_stocks(chain_name)
+                if not dyn_stocks:
+                    print(f"      → 未找到相关概念板块，跳过")
                     continue
-                fin_data = fetch_financial_data(code)
-                p = score_dynamic_company(
-                    code, stock["name"], chain_name, fin_data
-                )
-                if p is not None:
-                    results.append(p)
-                    processed_codes.add(code)
-                    kept += 1
-            print(f"      → 抓取 {len(dyn_stocks)} 只，通过财务筛选 {kept} 只")
+                kept = 0
+                for stock in dyn_stocks:
+                    code = stock["code"]
+                    if code in processed_codes:
+                        continue
+                    fin_data = fetch_financial_data(code)
+                    p = score_dynamic_company(
+                        code, stock["name"], chain_name, fin_data
+                    )
+                    if p is not None:
+                        results.append(p)
+                        processed_codes.add(code)
+                        kept += 1
+                print(f"      → 抓取 {len(dyn_stocks)} 只，通过财务筛选 {kept} 只")
+
+    # ── 为每个 profile 补充技术面和深度财务分析 ──
+    for p in results:
+        try:
+            tech = compute_technical_indicators(p.code)
+            p.tech_summary = tech.get("summary", "")
+            p.tech_overall = tech.get("overall", "")
+        except Exception:
+            pass
+        try:
+            deep = fetch_deep_financials(p.code)
+            df_parts = []
+            if deep.get("gm_trend"):
+                df_parts.append(deep["gm_trend"])
+            if deep.get("quality_note"):
+                df_parts.append(deep["quality_note"])
+            p.deep_financial = " ".join(df_parts) if df_parts else ""
+            p.gross_margin_trend = deep.get("gm_trend", "")
+            p.financial_quality = deep.get("quality_note", "")
+            p.cash_to_profit_ratio = deep.get("cash_to_profit", 0) or 0
+            p.rd_ratio = deep.get("rd_ratio", 0) or 0
+        except Exception:
+            pass
+
+        # deep_financial 为空时用 LLM 补充
+        if not p.deep_financial:
+            try:
+                from llm_client import chat
+                price = _get_current_price(p.code)
+                if price and price > 0:
+                    sys_prompt = "你是A股财务分析专家。根据公司已知信息给出简短（50字内）的深度财务分析，重点：现金流质量、毛利率趋势、研发投入。"
+                    info_text = f"公司：{p.name}({p.code})，当前价{price}，毛利率{p.gross_margin:.1f}%，ROE{p.roe:.1f}%，PE{p.pe:.0f}，营收同比{p.rev_yoy:+.1f}%，净利同比{p.profit_yoy:+.1f}%，负债率{p.debt_ratio:.1f}%。"
+                    ai_note = chat(sys_prompt, info_text, temperature=0.3)
+                    if ai_note:
+                        p.deep_financial = ai_note.strip()[:200]
+            except Exception:
+                pass
 
     return sorted(results, key=lambda x: x.total_score, reverse=True)
 
@@ -919,6 +1030,16 @@ class StockDecision:
     tech_summary: str = ""
     tech_overall: str = ""
     deep_financial: str = ""
+    # A股实际交易数据
+    current_price: float = 0.0
+    first_batch_lots: int = 0       # 首批可买手数
+    first_batch_cost: float = 0.0   # 首批实际金额
+    stop_loss_price: float = 0.0    # 止损价位
+    max_loss_amount: float = 0.0    # 最大亏损金额
+    # 财务指标
+    pe: float = 0.0
+    cash_flow_ratio: float = 0.0
+    debt_ratio: float = 0.0
 
 
 def get_timing_signal(code: str) -> dict:
@@ -1002,7 +1123,8 @@ def calculate_position(layers_passed: int, market_env: str,
 
 def make_decision(profile: CompanyProfile,
                   l0_pass: bool, l1_score: int, l2_score: int,
-                  l3_active: bool, market_env: str = "SIDEWAYS") -> StockDecision:
+                  l3_active: bool, market_env: str = "SIDEWAYS",
+                  capital_total: float = 1_000_000) -> StockDecision:
     """综合六层做出最终决策"""
     # ── 技术指标分析 ──
     tech = compute_technical_indicators(profile.code)
@@ -1032,6 +1154,18 @@ def make_decision(profile: CompanyProfile,
         df_parts.append(deep["quality_note"])
     d.deep_financial = " ".join(df_parts) if df_parts else ""
 
+    # deep_financial 为空时用 LLM 补充
+    if not d.deep_financial and d.current_price and d.current_price > 0:
+        try:
+            from llm_client import chat
+            sys_prompt = "你是A股财务分析专家。根据公司已知信息给出简短（50字内）的深度财务分析，重点：现金流质量、毛利率趋势、研发投入。"
+            info_text = f"公司：{profile.name}({profile.code})，当前价{d.current_price}，毛利率{profile.gross_margin:.1f}%，ROE{profile.roe:.1f}%，PE{profile.pe:.0f}，营收同比{profile.rev_yoy:+.1f}%，净利同比{profile.profit_yoy:+.1f}%，负债率{profile.debt_ratio:.1f}%。Green flags: {profile.green_flags[:3]}。Red flags: {profile.red_flags[:3]}。"
+            ai_note = chat(sys_prompt, info_text, temperature=0.3)
+            if ai_note:
+                d.deep_financial = ai_note.strip()[:200]
+        except Exception:
+            pass
+
     if not l0_pass:
         d.verdict = "NO"
         d.reason  = "Layer 0 触发系统性风险，禁止新建仓位"
@@ -1056,6 +1190,24 @@ def make_decision(profile: CompanyProfile,
     d.base_position_pct   = pos["base_pct"]
     d.actual_position_pct = pos["actual_pct"]
     d.first_batch_pct     = pos["first_batch"]
+
+    # ── A股实际交易计算（按手数）──
+    price = _get_current_price(profile.code)
+    if price and price > 0:
+        d.current_price = round(price, 2)
+        d.pe = profile.pe or 0
+        d.cash_flow_ratio = getattr(profile, "cash_to_profit_ratio", None)
+        d.debt_ratio = profile.debt_ratio or 0
+        # 首批金额 = 总资金 * 首批仓位比例
+        budget = capital_total * d.first_batch_pct / 100
+        # A股最低1手=100股，最多买多少手
+        lots = int(budget / (price * 100))
+        if lots < 1:
+            lots = 1  # 至少1手
+        d.first_batch_lots = lots
+        d.first_batch_cost = round(lots * price * 100, 0)
+        d.stop_loss_price = round(price * (1 - d.stop_loss_pct / 100), 2)
+        d.max_loss_amount = round(lots * (price - d.stop_loss_price) * 100, 0)
 
     # ── 决策逻辑 ──
     has_timing = d.timing_signal in ("BREAKOUT", "PULLBACK", "ACCUMULATION")
@@ -1090,12 +1242,13 @@ def make_decision(profile: CompanyProfile,
 def run_layer5(profiles: List[CompanyProfile], l0_pass: bool,
                l1_score: int, l2_score: int,
                l3_active_chains: List[str],
-               market_env: str = "SIDEWAYS") -> List[StockDecision]:
+               market_env: str = "SIDEWAYS",
+               capital_total: float = 1_000_000) -> List[StockDecision]:
     decisions = []
     for p in profiles:
         if p.verdict == "FAKE":
             continue
         l3_active = any(p.chain in c for c in l3_active_chains)
-        d = make_decision(p, l0_pass, l1_score, l2_score, l3_active, market_env)
+        d = make_decision(p, l0_pass, l1_score, l2_score, l3_active, market_env, capital_total)
         decisions.append(d)
     return sorted(decisions, key=lambda x: (x.verdict == "GO", x.actual_position_pct), reverse=True)

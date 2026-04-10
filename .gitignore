@@ -1,5 +1,6 @@
 # API Key 配置（绝不能提交！）
 .env
+llm_config.json
 
 # Python 缓存
 __pycache__/
