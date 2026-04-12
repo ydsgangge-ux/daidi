@@ -650,9 +650,9 @@ function pgL4(){
       ${p.financials.rev_yoy?`<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:${p.financials.rev_yoy>0?'var(--Gbg)':'var(--Rbg)'};color:${p.financials.rev_yoy>0?'var(--Gtx)':'var(--Rtx)'};">营收同比 ${p.financials.rev_yoy>0?'+':''}${p.financials.rev_yoy.toFixed(1)}%</span>`:''}
       ${p.financials.profit_yoy?`<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:${p.financials.profit_yoy>0?'var(--Gbg)':'var(--Rbg)'};color:${p.financials.profit_yoy>0?'var(--Gtx)':'var(--Rtx)'};">净利同比 ${p.financials.profit_yoy>0?'+':''}${p.financials.profit_yoy.toFixed(1)}%</span>`:''}
       ${p.financials.debt_ratio?`<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:var(--sf2);color:var(--tx2);">负债率 ${p.financials.debt_ratio.toFixed(1)}%</span>`:''}
-      ${p.financials.pe?`<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:${p.financials.pe>100?'var(--Rbg)':'var(--sf2)'};color:${p.financials.pe>100?'var(--Rtx)':'var(--tx2)'};">PE ${p.financials.pe.toFixed(0)}x</span>`:''}
+      ${p.financials.pe!=null?`<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:${p.financials.pe>100?'var(--Rbg)':'var(--sf2)'};color:${p.financials.pe>100?'var(--Rtx)':'var(--tx2)'};">PE ${p.financials.pe.toFixed(0)}x</span>`:'<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:var(--sf2);color:var(--tx2);">PE N/A</span>'}
       ${p.financials.mktcap?`<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:var(--sf2);color:var(--tx2);">市值 ${p.financials.mktcap}</span>`:''}
-      ${p.financials.cash_flow_ratio!=null?`<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:${p.financials.cash_flow_ratio>=0.8?'var(--Gbg)':'var(--Rbg)'};color:${p.financials.cash_flow_ratio>=0.8?'var(--Gtx)':'var(--Rtx)'};">现金流/利润 ${p.financials.cash_flow_ratio.toFixed(2)}</span>`:''}
+      ${p.financials.cash_flow_ratio!=null?`<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:${p.financials.cash_flow_ratio>=0.8?'var(--Gbg)':'var(--Rbg)'};color:${p.financials.cash_flow_ratio>=0.8?'var(--Gtx)':'var(--Rtx)'};">现金流/利润 ${p.financials.cash_flow_ratio.toFixed(2)}</span>`:'<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:var(--sf2);color:var(--tx2);">现金流 N/A</span>'}
       <span style="font-size:10px;padding:2px 5px;border-radius:3px;background:var(--Pbg);color:var(--Ptx);">${p.data_source==='auto'?'自动评分':'静态评分'}</span>
     </div>`:''}
     ${p.tech_summary?`<div style="margin-bottom:8px;padding:8px 12px;border-radius:var(--r);background:var(--Bbg);border-left:3px solid var(--B);">
@@ -726,9 +726,9 @@ function pgL5(){
       <div class="dcm"><div class="dcml">单笔最大亏损</div><div class="dcmv" style="color:var(--R);">¥${(d.max_loss_amount||0).toLocaleString()}</div></div>
       <div class="dcm"><div class="dcml">每手成本</div><div class="dcmv">¥${d.current_price?(d.current_price*100).toFixed(0):'—'}</div></div>
     </div>`:''}
-    ${(d.pe||d.cash_flow_ratio!=null||d.debt_ratio)?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
-      ${d.pe?`<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:${d.pe>100||d.pe<0?'var(--Rbg)':'var(--Bbg)'};color:${d.pe>100||d.pe<0?'var(--Rtx)':'var(--Btx)'};">PE ${d.pe.toFixed(0)}x</span>`:''}
-      ${d.cash_flow_ratio!=null?`<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:${d.cash_flow_ratio>=0.8?'var(--Gbg)':'var(--Rbg)'};color:${d.cash_flow_ratio>=0.8?'var(--Gtx)':'var(--Rtx)'};">现金流/利润 ${d.cash_flow_ratio.toFixed(2)}</span>`:''}
+    ${(d.pe!=null||d.cash_flow_ratio!=null||d.debt_ratio)?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
+      ${d.pe!=null?`<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:${d.pe>100||d.pe<0?'var(--Rbg)':'var(--Bbg)'};color:${d.pe>100||d.pe<0?'var(--Rtx)':'var(--Btx)'};">PE ${d.pe.toFixed(0)}x</span>`:'<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:var(--sf2);color:var(--tx2);">PE N/A</span>'}
+      ${d.cash_flow_ratio!=null?`<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:${d.cash_flow_ratio>=0.8?'var(--Gbg)':'var(--Rbg)'};color:${d.cash_flow_ratio>=0.8?'var(--Gtx)':'var(--Rtx)'};">现金流/利润 ${d.cash_flow_ratio.toFixed(2)}</span>`:'<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:var(--sf2);color:var(--tx2);">现金流 N/A</span>'}
       ${d.debt_ratio?`<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:${d.debt_ratio>70?'var(--Rbg)':'var(--sf2)'};color:${d.debt_ratio>70?'var(--Rtx)':'var(--tx2)'};">负债率 ${d.debt_ratio.toFixed(1)}%</span>`:''}
     </div>`:''}
     <div class="dca ${d.verdict==='GO'?'daG':d.verdict==='WAIT'?'daA':'daR'}">

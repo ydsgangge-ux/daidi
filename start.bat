@@ -43,9 +43,8 @@ if not exist llm_config.json (
         echo  [!] 未检测到大模型 API Key 配置
         echo      系统将使用规则兜底运行（趋势判定和产业链分析精度会降低）
         echo.
-        echo      如需配置大模型，运行以下任一命令：
-        echo        python setup_llm.py        （图形化配置，推荐）
-        echo        或手动创建 .env 文件写入 DEEPSEEK_API_KEY=sk-xxx
+        echo      如需配置大模型，双击 setup_llm.bat 即可配置
+        echo      或手动创建 .env 文件写入 DEEPSEEK_API_KEY=sk-xxx
         echo.
     )
 ) else (

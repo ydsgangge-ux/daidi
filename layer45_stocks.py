@@ -147,10 +147,12 @@ def fetch_financial_data(code: str) -> dict:
         "debt_ratio": None, "cash_flow_ratio": None,
         "eps": None, "net_profit": "", "rev": "",
     }
-    # 1. 基本信息（PE/PB/市值/价格）
-    try:
-        df = ak.stock_individual_info_em(symbol=code)
-        if df is not None and len(df) > 0:
+    # 1. 基本信息（PE/PB/市值/价格）（带重试）
+    def _fetch_info():
+        return ak.stock_individual_info_em(symbol=code)
+    df = _fetch_with_retry(_fetch_info)
+    if df is not None and len(df) > 0:
+        try:
             df = df.set_index("item")
             if "市盈率-动态" in df.index:
                 result["pe"] = _parse_pct(df.loc["市盈率-动态", "value"])
@@ -162,14 +164,15 @@ def fetch_financial_data(code: str) -> dict:
                     result["mktcap"] = f"{mktcap/1e8:.0f}亿"
                 else:
                     result["mktcap"] = str(mktcap)
-    except Exception:
-        pass
+        except Exception:
+            pass
 
-    # 2. 同花顺财务摘要（净利润/营收/毛利率/增长率/现金流等）
-    try:
-        df = ak.stock_financial_abstract_ths(symbol=code, indicator="按报告期")
-        if df is not None and len(df) > 0:
-            # 取最近一个年报或最新报告期
+    # 2. 同花顺财务摘要（净利润/营收/毛利率/增长率/现金流等）（带重试）
+    def _fetch_abstract():
+        return ak.stock_financial_abstract_ths(symbol=code, indicator="按报告期")
+    df = _fetch_with_retry(_fetch_abstract)
+    if df is not None and len(df) > 0:
+        try:
             df = df.head(1).iloc[0]
 
             result["gross_margin"] = _parse_pct(df.get("销售毛利率"))
@@ -182,8 +185,8 @@ def fetch_financial_data(code: str) -> dict:
             result["eps"] = _parse_pct(df.get("基本每股收益"))
             result["net_profit"] = str(df.get("净利润", ""))
             result["rev"] = str(df.get("营业总收入", ""))
-    except Exception:
-        pass
+        except Exception:
+            pass
 
     return result
 
@@ -388,6 +391,21 @@ def compute_technical_indicators(code: str) -> dict:
 # 深度财务分析：现金流质量 / 研发投入 / 毛利率趋势
 # ══════════════════════════════════════════════════════════════════════════════
 
+def _fetch_with_retry(fetch_fn, retries=2, delay=3):
+    """通用重试包装器"""
+    import time
+    for attempt in range(retries):
+        try:
+            result = fetch_fn()
+            if result is not None:
+                return result
+        except Exception:
+            pass
+        if attempt < retries - 1:
+            time.sleep(delay)
+    return None
+
+
 def fetch_deep_financials(code: str) -> dict:
     """
     获取深度财务数据：现金流质量、研发费用率、毛利率趋势。
@@ -415,10 +433,12 @@ def fetch_deep_financials(code: str) -> dict:
     except Exception:
         pass
 
-    # ── 2. 东方财富利润表 → 净利润 / 研发费用 / 营收 ──
-    try:
-        df = ak.stock_profit_sheet_by_report_em(symbol=code)
-        if df is not None and len(df) >= 2:
+    # ── 2. 东方财富利润表 → 净利润 / 研发费用 / 营收（带重试） ──
+    def _fetch_profit():
+        return ak.stock_profit_sheet_by_report_em(symbol=code)
+    df = _fetch_with_retry(_fetch_profit)
+    if df is not None and len(df) >= 2:
+        try:
             df.columns = [c.strip() for c in df.columns]
             np_cols = [c for c in df.columns if "净利润" in c and "合计" in c]
             rd_cols = [c for c in df.columns if "研发费用" in c]
@@ -432,13 +452,15 @@ def fetch_deep_financials(code: str) -> dict:
                 info["_np_val"] = np_val
             if rev_val and rev_val != 0:
                 info["_rev_val"] = rev_val
-    except Exception:
-        pass
+        except Exception:
+            pass
 
-    # ── 3. 东方财富现金流量表 → 经营现金流 ──
-    try:
-        df = ak.stock_cash_flow_sheet_by_report_em(symbol=code)
-        if df is not None and len(df) >= 2:
+    # ── 3. 东方财富现金流量表 → 经营现金流（带重试） ──
+    def _fetch_cashflow():
+        return ak.stock_cash_flow_sheet_by_report_em(symbol=code)
+    df = _fetch_with_retry(_fetch_cashflow)
+    if df is not None and len(df) >= 2:
+        try:
             df.columns = [c.strip() for c in df.columns]
             cf_cols = [c for c in df.columns
                        if "经营活动" in c and "现金流量" in c and "净额" in c]
@@ -446,8 +468,38 @@ def fetch_deep_financials(code: str) -> dict:
                 cf_val = float(pd.to_numeric(df[cf_cols[0]].iloc[0], errors="coerce"))
                 if pd.notna(cf_val):
                     info["_cf_val"] = cf_val
-    except Exception:
-        pass
+        except Exception:
+            pass
+
+    # ── 3.5 备用：东方财富失败时，尝试同花顺现金流量表 ──
+    if "_cf_val" not in info:
+        try:
+            df = ak.stock_cash_flow_sheet_ths(symbol=code, indicator="按报告期")
+            if df is not None and len(df) >= 2:
+                df.columns = [c.strip() for c in df.columns]
+                cf_cols = [c for c in df.columns if "经营" in c and "净额" in c]
+                if cf_cols:
+                    cf_val = float(pd.to_numeric(df[cf_cols[0]].iloc[0], errors="coerce"))
+                    if pd.notna(cf_val):
+                        info["_cf_val"] = cf_val
+        except Exception:
+            pass
+
+    # ── 3.6 备用：东方财富利润表也失败时，用同花顺利润表 ──
+    if "_np_val" not in info:
+        try:
+            df = ak.stock_profit_sheet_ths(symbol=code, indicator="按报告期")
+            if df is not None and len(df) >= 2:
+                df.columns = [c.strip() for c in df.columns]
+                np_cols = [c for c in df.columns if "净利润" in c and ("合计" in c or "归属" in c)]
+                if not np_cols:
+                    np_cols = [c for c in df.columns if "净利润" in c]
+                if np_cols:
+                    np_val = float(pd.to_numeric(df[np_cols[0]].iloc[0], errors="coerce"))
+                    if pd.notna(np_val) and np_val != 0:
+                        info["_np_val"] = np_val
+        except Exception:
+            pass
 
     # ── 4. 汇总 ──
     np_val = info.pop("_np_val", None)
@@ -624,17 +676,17 @@ def auto_score_company(code: str, static_info: dict, fin_data: dict) -> CompanyP
         verdict=verdict,
         total_score=total,
         note=note,
-        pe=fin_data.get("pe") or 0,
-        pb=fin_data.get("pb") or 0,
+        pe=fin_data.get("pe") if fin_data.get("pe") else None,
+        pb=fin_data.get("pb") if fin_data.get("pb") else None,
         mktcap=fin_data.get("mktcap") or "",
-        gross_margin=fin_data.get("gross_margin") or 0,
-        net_margin=fin_data.get("net_margin") or 0,
-        roe=fin_data.get("roe") or 0,
-        rev_yoy=fin_data.get("rev_yoy") or 0,
-        profit_yoy=fin_data.get("profit_yoy") or 0,
-        net_profit_deducted_yoy=fin_data.get("net_profit_deducted_yoy") or 0,
-        debt_ratio=fin_data.get("debt_ratio") or 0,
-        cash_flow_ratio=fin_data.get("cash_flow_ratio") or 0,
+        gross_margin=fin_data.get("gross_margin") if fin_data.get("gross_margin") else None,
+        net_margin=fin_data.get("net_margin") if fin_data.get("net_margin") else None,
+        roe=fin_data.get("roe") if fin_data.get("roe") else None,
+        rev_yoy=fin_data.get("rev_yoy") if fin_data.get("rev_yoy") else None,
+        profit_yoy=fin_data.get("profit_yoy") if fin_data.get("profit_yoy") else None,
+        net_profit_deducted_yoy=fin_data.get("net_profit_deducted_yoy") if fin_data.get("net_profit_deducted_yoy") else None,
+        debt_ratio=fin_data.get("debt_ratio") if fin_data.get("debt_ratio") else None,
+        cash_flow_ratio=None,
         data_source="auto",
     )
     return p
@@ -865,17 +917,17 @@ def score_dynamic_company(code: str, name: str, chain: str,
         verdict=verdict,
         total_score=min(score, 100),
         note=note,
-        pe=pe or 0,
-        pb=fin_data.get("pb") or 0,
+        pe=pe if pe else None,
+        pb=fin_data.get("pb") if fin_data.get("pb") else None,
         mktcap=str(mktcap),
-        gross_margin=gm or 0,
-        net_margin=nm or 0,
-        roe=roe or 0,
-        rev_yoy=rev_yoy or 0,
-        profit_yoy=profit_yoy or 0,
-        net_profit_deducted_yoy=deduct_yoy or 0,
-        debt_ratio=debt or 0,
-        cash_flow_ratio=fin_data.get("cash_flow_ratio") or 0,
+        gross_margin=gm if gm else None,
+        net_margin=nm if nm else None,
+        roe=roe if roe else None,
+        rev_yoy=rev_yoy if rev_yoy else None,
+        profit_yoy=profit_yoy if profit_yoy else None,
+        net_profit_deducted_yoy=deduct_yoy if deduct_yoy else None,
+        debt_ratio=debt if debt else None,
+        cash_flow_ratio=None,
         data_source="dynamic",
     )
 
@@ -1195,9 +1247,9 @@ def make_decision(profile: CompanyProfile,
     price = _get_current_price(profile.code)
     if price and price > 0:
         d.current_price = round(price, 2)
-        d.pe = profile.pe or 0
+        d.pe = profile.pe
         d.cash_flow_ratio = getattr(profile, "cash_to_profit_ratio", None)
-        d.debt_ratio = profile.debt_ratio or 0
+        d.debt_ratio = profile.debt_ratio
         # 首批金额 = 总资金 * 首批仓位比例
         budget = capital_total * d.first_batch_pct / 100
         # A股最低1手=100股，最多买多少手

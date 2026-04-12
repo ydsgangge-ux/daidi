@@ -16,6 +16,8 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 WEB_DIR = os.path.join(ROOT, "web")
 CONFIG_PATH = os.path.join(ROOT, "llm_config.json")
 
+PORT = 18765
+
 
 class ConfigHandler(SimpleHTTPRequestHandler):
     """处理配置页面请求和 API"""
@@ -35,7 +37,6 @@ class ConfigHandler(SimpleHTTPRequestHandler):
                         cfg = json.load(f)
                 except Exception:
                     pass
-            # 隐藏 API Key 中间部分
             key = cfg.get("api_key", "")
             if key:
                 cfg["api_key_masked"] = key[:6] + "****" + key[-4:] if len(key) > 10 else "****"
@@ -91,7 +92,7 @@ class ConfigHandler(SimpleHTTPRequestHandler):
             try:
                 with open(CONFIG_PATH, "w", encoding="utf-8") as f:
                     json.dump(cfg, f, ensure_ascii=False, indent=2)
-                print(f"  [配置已保存] 品牌={provider} 模型={model}")
+                print(f"  [OK] 配置已保存: {provider} / {model}")
                 self._json_response({"ok": True, "message": "配置已保存"})
             except Exception as e:
                 self._json_response({"ok": False, "message": f"保存失败: {e}"}, 500)
@@ -121,7 +122,6 @@ class ConfigHandler(SimpleHTTPRequestHandler):
                                      "response": text.strip(), "model": model})
             except Exception as e:
                 err = str(e)
-                # 常见错误翻译
                 if "401" in err or "auth" in err.lower():
                     err = "API Key 无效或已过期，请检查后重新输入"
                 elif "404" in err:
@@ -144,6 +144,28 @@ class ConfigHandler(SimpleHTTPRequestHandler):
         pass  # 静默日志
 
 
+def kill_port(port):
+    """尝试关闭占用指定端口的进程"""
+    import subprocess
+    try:
+        if sys.platform == "win32":
+            # 用 netstat 找 PID，再 taskkill
+            r = subprocess.run(
+                f'netstat -ano | findstr ":{port}" | findstr "LISTENING"',
+                shell=True, capture_output=True, text=True)
+            for line in r.stdout.strip().splitlines():
+                parts = line.split()
+                if len(parts) >= 5:
+                    pid = parts[-1]
+                    subprocess.run(f"taskkill /F /PID {pid}", shell=True,
+                                   capture_output=True)
+        else:
+            subprocess.run(f"lsof -ti :{port} | xargs kill -9 2>/dev/null",
+                           shell=True, capture_output=True)
+    except Exception:
+        pass
+
+
 def main():
     # Windows 编码兼容
     if sys.platform == "win32":
@@ -151,28 +173,65 @@ def main():
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
         sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
-    port = 18765
-    server = HTTPServer(("127.0.0.1", port), ConfigHandler)
-
-    url = f"http://127.0.0.1:{port}/config"
     print()
     print("=" * 50)
-    print("   大模型配置器")
-    print("=" * 50)
-    print(f"   浏览器已打开：{url}")
-    print("   配置完成后关闭此窗口即可")
+    print("   大模型配置器 — 正在启动...")
     print("=" * 50)
     print()
 
-    # 延迟打开浏览器（等服务器启动）
+    # 检查端口占用
+    import socket
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        sock.bind(("127.0.0.1", PORT))
+        sock.close()
+    except OSError:
+        sock.close()
+        print(f"  [!] 端口 {PORT} 被占用，正在清理...")
+        kill_port(PORT)
+        import time
+        time.sleep(1)
+        # 再次检查
+        sock2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            sock2.bind(("127.0.0.1", PORT))
+            sock2.close()
+            print(f"  [OK] 端口已释放")
+        except OSError:
+            sock2.close()
+            print(f"\n  [X] 端口 {PORT} 仍被占用，无法启动")
+            print(f"  请手动关闭占用端口的程序后重试")
+            input("\n  按回车键退出...")
+            return
+
+    # 启动服务器
+    try:
+        server = HTTPServer(("127.0.0.1", PORT), ConfigHandler)
+    except Exception as e:
+        print(f"\n  [X] 启动失败: {e}")
+        input("\n  按回车键退出...")
+        return
+
+    url = f"http://127.0.0.1:{PORT}/config"
+    print(f"  [OK] 服务器已启动")
+    print(f"  [OK] 浏览器即将打开: {url}")
+    print()
+    print("  配置完成后关闭此窗口即可")
+    print()
+
+    # 延迟打开浏览器
     threading.Timer(0.5, lambda: webbrowser.open(url)).start()
 
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\n配置器已关闭。")
+        print("\n  配置器已关闭。")
         server.server_close()
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        print(f"\n  [X] 程序异常: {e}")
+        input("\n  按回车键退出...")

@@ -202,10 +202,16 @@ let step = 1;
 // ── 加载品牌列表 ──────────────────────────────────────────────────────────
 async function loadProviders() {
   try {
-    const r = await fetch('/api/providers');
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 5000);
+    const r = await fetch('/api/providers', {signal: ctrl.signal});
+    clearTimeout(timer);
     providers = await r.json();
     renderBrands();
   } catch(e) {
+    if (e.name === 'AbortError') {
+      setStatus('err', '连接服务器超时，请确认正在运行 python setup_llm.py');
+    }
     // 内嵌 fallback
     providers = {"deepseek":{"name":"DeepSeek","emoji":"🌊","base_url":"https://api.deepseek.com",
       "models":["deepseek-reasoner","deepseek-chat"],
@@ -441,7 +447,10 @@ async function saveConfig() {
 // ── 加载已保存的配置 ──────────────────────────────────────────────────────
 async function loadExisting() {
   try {
-    const r = await fetch('/api/config');
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 5000);
+    const r = await fetch('/api/config', {signal: ctrl.signal});
+    clearTimeout(timer);
     const cfg = await r.json();
     if (cfg.provider && providers[cfg.provider]) {
       // 恢复品牌
@@ -463,7 +472,11 @@ async function loadExisting() {
       step = 2;
       updateSteps();
     }
-  } catch(e) {}
+  } catch(e) {
+    if (e.name === 'AbortError') {
+      setStatus('err', '无法连接配置服务器，请确认正在运行 python setup_llm.py');
+    }
+  }
 }
 
 // ── 状态栏 ──────────────────────────────────────────────────────────────
