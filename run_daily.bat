@@ -1,6 +1,5 @@
 @echo off
-chcp 65001 >nul
-echo [%date% %time%] 开始六层市场分析...
+echo [%date% %time%] Starting 6-layer market analysis...
 cd /d "%~dp0"
 python export_json.py
-echo [%date% %time%] 分析完成
+echo [%date% %time%] Analysis complete
