@@ -336,13 +336,16 @@ market_system/
 ├── international_signals.py   # 国际信号源采集（新闻+指数）
 ├── trend_judge.py             # 趋势综合判定（LLM）
 ├── llm_client.py              # 大模型客户端（多品牌支持）
-├── test_all.py                # 逐层测试脚本
-├── run_daily.bat              # Windows 一键运行
-├── run_daily.sh               # macOS / Linux 一键运行
+├── backtest.py                 # 回测引擎（验证策略收益/胜率/回撤）
+├── memory_store.py             # 长期记忆库（ChromaDB 时序演进追踪）
+├── strategy_config.py          # 策略配置中心（集中管理所有可调参数）
+├── test_all.py                 # 逐层测试脚本
+├── run_daily.bat               # Windows 一键运行
+├── run_daily.sh                # macOS / Linux 一键运行
 ├── requirements.txt            # Python 依赖清单（pip install -r）
-├── setup_llm.py              # 大模型图形化配置器（一键配置）
-├── llm_config.json            # 大模型配置（配置器自动生成）
-├── .env                       # API Key 配置（旧方式，可选）
+├── setup_llm.py                # 大模型图形化配置器（一键配置）
+├── llm_config.json             # 大模型配置（配置器自动生成）
+├── .env                        # API Key 配置（旧方式，可选）
 ├── web/
 │   ├── index.html             # Web 面板入口
 │   ├── config.html            # 大模型配置页面（setup_llm.py 调用）
@@ -350,9 +353,84 @@ market_system/
 │   ├── dashboard.json         # 最新分析数据
 │   └── dashboard_standalone.html
 ├── reports/                   # 文本报告存档
+├── memory/                    # ChromaDB 长期记忆持久化目录
 ├── logs/                      # 运行日志
 └── 构思/                      # 设计文档参考
 ```
+
+---
+
+## 回测系统 — 验证收益闭环
+
+> **分析工具 vs 投资系统的区别**：分析工具展示"现在的状态"，投资系统证明"这到底有没有用"。
+
+回测引擎在历史数据上模拟六层交易决策，提供**可验证的绩效数据**：
+
+### 一键运行
+
+```bash
+python backtest.py --stock 300394 --start 2024-01-01 --end 2025-12-31 --capital 1000000
+```
+
+### 输出指标
+
+| 指标 | 说明 |
+|------|------|
+| 总收益率 / 年化收益率 | 策略绝对收益表现 |
+| 最大回撤 | 从峰值到谷底的最大跌幅 |
+| 夏普比率 | 风险调整后收益（>1 优秀，>2 极好） |
+| 胜率 | 盈利交易占比 |
+| 平均盈利 / 平均亏损 | 盈亏幅度 |
+| 沪深300 对比 | 超额收益 = 策略收益 - 基准收益 |
+| 交易日志 | 每笔入场/出场/盈亏明细 |
+| 净值曲线 | 每日净值 + 基准走势数据 |
+
+### 参数
+
+| 参数 | 说明 | 默认 |
+|------|------|------|
+| `--stock` | 股票代码 | 300394 |
+| `--start` | 回测开始日期 | 2024-01-01 |
+| `--end` | 回测结束日期 | 今天 |
+| `--capital` | 初始资金 | 1000000 |
+| `--output` | 输出JSON路径 | web/backtest_report.json |
+
+---
+
+## 长期记忆库 — 状态演进追踪
+
+借鉴 AGI 记忆机制。每次运行 `export_json.py`，六层分析结果自动存入 **ChromaDB 向量数据库**：
+
+### 核心能力
+
+| 能力 | 说明 |
+|------|------|
+| **状态快照** | 每次分析完整结果持久化，支持历史回溯 |
+| **个股趋势** | 追踪每只股票的 L0→L5 各维度变化曲线 |
+| **信号速度** | 计算评分变化率（加速/减速），比单点判断更有预见性 |
+| **相似搜索** | 用自然语言搜索历史上相似的市场状态 |
+| **时序对比** | "当前 vs 一个月前" — L4评分上升还是下降？ |
+
+### 查询历史
+
+```python
+from memory_store import MemoryStore
+store = MemoryStore()
+
+# 查看某只股票的评分变化
+history = store.get_stock_history("300308")
+
+# 追踪信号速度
+velocity = store.get_velocity("300308")
+print(f"L4评分变化: {velocity['trends']['l4_score']['delta']}")
+
+# 搜索相似市场状态
+similar = store.search_similar_states("AI算力链光模块高景气，L3传导加速")
+```
+
+### 数据目录
+
+`./memory/` 目录自动创建，Git 已忽略。每次 `export_json.py` 运行都会自动追加新快照，无需手动管理。
 
 ---
 

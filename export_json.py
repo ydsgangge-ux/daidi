@@ -396,6 +396,18 @@ def run_export(capital: float = 1_000_000,
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
 
+    # ── 存入记忆库（ChromaDB 长期记忆） ──
+    try:
+        from memory_store import MemoryStore
+        store = MemoryStore()
+        store.save_analysis(payload)
+        stats = store.get_stats()
+        logger.info(f"记忆库已更新: {stats['trends']} 条趋势记录")
+    except ImportError:
+        pass  # ChromaDB 未安装，跳过
+    except Exception as e:
+        logger.debug(f"记忆库写入失败: {e}")
+
     # 同时生成一个自带数据的 HTML（可直接双击打开，无需 HTTP 服务器）
     standalone_path = os.path.join(out_dir or ".", "dashboard_standalone.html")
     html_path = os.path.join(out_dir or ".", "index.html")
