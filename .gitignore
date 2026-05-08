@@ -1,0 +1,28 @@
+# API Key 配置（绝不能提交！）
+.env
+llm_config.json
+
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+
+# 分析报告（含个人投资数据）
+reports/
+
+# Web 生成文件
+web/dashboard.json
+web/dashboard_standalone.html
+
+# 运行日志
+logs/
+
+# IDE 配置
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 系统文件
+.DS_Store
+Thumbs.db

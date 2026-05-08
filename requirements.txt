@@ -1,0 +1,5 @@
+akshare>=1.14.0
+pandas>=1.5.0
+numpy>=1.23.0
+rich>=13.0.0
+openai>=1.0.0

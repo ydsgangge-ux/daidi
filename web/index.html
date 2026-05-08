@@ -1,0 +1,1325 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>「待敌」市场分析系统</title>
+<style>
+:root{
+  --bg:#f7f6f2;--sf:#fff;--sf2:#f1efe8;--sf3:#e8e6e0;
+  --bd:rgba(0,0,0,0.09);--bd2:rgba(0,0,0,0.18);
+  --tx:#1a1a18;--tx2:#5f5e5a;--tx3:#999;
+  --G:#1d9e75;--Gbg:#eaf3de;--Gtx:#3b6d11;--Gdk:#085041;
+  --R:#e24b4a;--Rbg:#fcebeb;--Rtx:#a32d2d;--Rdk:#791f1f;
+  --A:#ba7517;--Abg:#faeeda;--Atx:#854f0b;--Adk:#633806;
+  --B:#378add;--Bbg:#e6f1fb;--Btx:#0c447c;
+  --P:#7f77dd;--Pbg:#eeedfe;--Ptx:#3c3489;
+  --T:#1d9e75;--Tbg:#e1f5ee;--Ttx:#085041;
+  --C:#d85a30;--Cbg:#faece7;--Ctx:#712b13;
+  --r:8px;--r2:12px;
+}
+@media(prefers-color-scheme:dark){
+  :root{
+    --bg:#181816;--sf:#222220;--sf2:#2a2a28;--sf3:#333330;
+    --bd:rgba(255,255,255,0.09);--bd2:rgba(255,255,255,0.2);
+    --tx:#e6e4de;--tx2:#888;--tx3:#555;
+    --Gbg:#0a2418;--Gtx:#5dcaa5;--Gdk:#9fe1cb;
+    --Rbg:#2a0f0f;--Rtx:#f09595;--Rdk:#f7c1c1;
+    --Abg:#261a06;--Atx:#ef9f27;--Adk:#fac775;
+    --Bbg:#081828;--Btx:#85b7eb;
+    --Pbg:#120f2e;--Ptx:#afa9ec;
+    --Tbg:#041810;--Ttx:#9fe1cb;
+    --Cbg:#2a1208;--Ctx:#f0997b;
+  }
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',sans-serif;
+     background:var(--bg);color:var(--tx);font-size:14px;line-height:1.6;}
+
+/* topbar */
+.topbar{background:var(--sf);border-bottom:1px solid var(--bd);padding:10px 20px;
+        display:flex;align-items:center;justify-content:space-between;
+        position:sticky;top:0;z-index:100;flex-wrap:wrap;gap:8px;}
+.app-title{font-size:15px;font-weight:700;letter-spacing:-.01em;}
+.app-sub{font-size:11px;color:var(--tx2);}
+.btn{font-size:12px;padding:5px 12px;border:1px solid var(--bd2);border-radius:var(--r);
+     background:transparent;color:var(--tx);cursor:pointer;}
+.btn:hover{background:var(--sf2);}
+.ts{font-size:11px;color:var(--tx3);}
+
+/* nav */
+.nav{display:flex;gap:1px;padding:0 20px;background:var(--sf);
+     border-bottom:1px solid var(--bd);overflow-x:auto;scrollbar-width:none;}
+.nav::-webkit-scrollbar{display:none;}
+.nt{font-size:13px;padding:10px 14px;cursor:pointer;color:var(--tx2);
+    border-bottom:2px solid transparent;white-space:nowrap;transition:.12s;}
+.nt:hover{color:var(--tx);}
+.nt.on{color:var(--tx);font-weight:600;border-bottom-color:var(--tx);}
+
+/* sub-nav */
+.snav{display:flex;gap:4px;margin-bottom:14px;flex-wrap:wrap;}
+.snt{font-size:12px;padding:4px 11px;border-radius:20px;cursor:pointer;
+     border:1px solid var(--bd);color:var(--tx2);background:var(--sf2);}
+.snt:hover{color:var(--tx);}
+.snt.on{background:var(--Tbg);color:var(--Ttx);border-color:var(--T);font-weight:600;}
+
+/* main */
+.main{max-width:1300px;margin:0 auto;padding:20px;}
+.page{display:none;} .page.on{display:block;}
+.subpage{display:none;} .subpage.on{display:block;}
+
+/* card */
+.card{background:var(--sf);border:1px solid var(--bd);border-radius:var(--r2);
+      padding:16px 20px;margin-bottom:12px;}
+.ct{font-size:14px;font-weight:600;margin-bottom:12px;}
+
+/* grid */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+
+/* metric */
+.mc{background:var(--sf2);border-radius:var(--r);padding:12px 14px;}
+.ml{font-size:11px;color:var(--tx2);margin-bottom:4px;}
+.mv{font-size:20px;font-weight:700;color:var(--tx);line-height:1.2;}
+.ms{font-size:11px;margin-top:3px;color:var(--tx2);}
+
+/* table */
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th{font-size:11px;font-weight:600;color:var(--tx2);text-align:left;
+   padding:0 8px 8px 0;border-bottom:1px solid var(--bd);letter-spacing:.04em;}
+td{padding:8px 8px 8px 0;border-bottom:1px solid var(--bd);vertical-align:top;}
+tr:last-child td{border-bottom:none;}
+
+/* tags */
+.tag{display:inline-block;font-size:11px;padding:2px 7px;border-radius:4px;font-weight:600;white-space:nowrap;}
+.tG{background:var(--Gbg);color:var(--Gtx);}
+.tR{background:var(--Rbg);color:var(--Rtx);}
+.tA{background:var(--Abg);color:var(--Atx);}
+.tN{background:var(--sf2);color:var(--tx2);}
+.tB{background:var(--Bbg);color:var(--Btx);}
+.tP{background:var(--Pbg);color:var(--Ptx);}
+.tT{background:var(--Tbg);color:var(--Ttx);}
+.tC{background:var(--Cbg);color:var(--Ctx);}
+
+/* bars */
+.brow{display:flex;align-items:center;gap:8px;}
+.bbg{flex:1;height:5px;background:var(--bd);border-radius:3px;overflow:hidden;}
+.bfill{height:100%;border-radius:3px;}
+.fG{background:var(--G);}.fR{background:var(--R);}.fA{background:var(--A);}
+.fB{background:var(--B);}.fN{background:#888;}
+
+/* dot */
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.dG{background:var(--G);}.dR{background:var(--R);}
+.dA{background:var(--A);}.dN{background:#888;}.dB{background:var(--B);}
+.dP{background:var(--P);}
+
+/* alert box */
+.abox{display:flex;gap:10px;align-items:flex-start;padding:11px 13px;border-radius:var(--r);margin-bottom:8px;}
+.aG{background:var(--Gbg);} .aR{background:var(--Rbg);} .aA{background:var(--Abg);}
+.aB{background:var(--Bbg);} .aP{background:var(--Pbg);} .aC{background:var(--Cbg);}
+.atG{color:var(--Gtx);} .atR{color:var(--Rtx);} .atA{color:var(--Atx);}
+.atB{color:var(--Btx);} .atP{color:var(--Ptx);} .atC{color:var(--Ctx);}
+.abG{color:var(--Gdk);} .abR{color:var(--Rdk);} .abA{color:var(--Adk);}
+
+/* chain flow */
+.cflow{display:flex;gap:0;border-radius:var(--r);overflow:hidden;border:1px solid var(--bd);margin-bottom:10px;}
+.cfn{flex:1;padding:10px 8px;border-right:1px solid var(--bd);min-width:0;}
+.cfn:last-child{border-right:none;}
+.cfn.active{outline:2px solid var(--G);outline-offset:-2px;}
+.cfs{font-size:9px;font-weight:600;letter-spacing:.06em;margin-bottom:3px;opacity:.7;}
+.cfname{font-size:12px;font-weight:600;margin-bottom:2px;}
+.cfd{font-size:10px;line-height:1.4;opacity:.7;}
+.cft{font-size:9px;font-weight:600;margin-top:4px;padding:1px 5px;border-radius:3px;display:inline-block;}
+.cfI{background:#eeedfe;} .cfI .cfs{color:#534ab7;} .cfI .cfname{color:#3c3489;} .cfI .cft{background:#afa9ec;color:#26215c;}
+.cfU{background:#e1f5ee;} .cfU .cfs{color:#0f6e56;} .cfU .cfname{color:#085041;} .cfU .cft{background:#9fe1cb;color:#04342c;}
+.cfM{background:#faeeda;} .cfM .cfs{color:#854f0b;} .cfM .cfname{color:#633806;} .cfM .cft{background:#fac775;color:#412402;}
+.cfD{background:#e6f1fb;} .cfD .cfs{color:#185fa5;} .cfD .cfname{color:#0c447c;} .cfD .cft{background:#b5d4f4;color:#042c53;}
+.cfW{background:#fcebeb;} .cfW .cfs{color:#a32d2d;} .cfW .cfname{color:#791f1f;} .cfW .cft{background:#f7c1c1;color:#501313;}
+
+/* decision card */
+.dc{border:1px solid var(--bd);border-radius:var(--r2);padding:14px 16px;margin-bottom:10px;}
+.dcGO{border-left:4px solid var(--G);}
+.dcWAIT{border-left:4px solid var(--A);}
+.dcNO{border-left:4px solid var(--R);}
+.dch{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;gap:8px;}
+.dcname{font-size:15px;font-weight:700;}
+.dcsub{font-size:11px;color:var(--tx2);margin-top:2px;}
+.dcmet{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px;}
+.dcm{background:var(--sf2);border-radius:var(--r);padding:7px 10px;}
+.dcml{font-size:10px;color:var(--tx3);margin-bottom:2px;}
+.dcmv{font-size:13px;font-weight:700;}
+.lcs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;}
+.lc{font-size:11px;padding:2px 6px;border-radius:3px;font-weight:500;}
+.lcP{background:var(--Gbg);color:var(--Gtx);}
+.lcF{background:var(--sf2);color:var(--tx2);}
+.dca{font-size:12px;padding:8px 12px;border-radius:var(--r);margin-top:8px;}
+.daG{background:var(--Gbg);color:var(--Gtx);}
+.daA{background:var(--Abg);color:var(--Atx);}
+.daR{background:var(--Rbg);color:var(--Rtx);}
+
+/* logic chain blocks */
+.lblock{padding:11px 14px;border-radius:var(--r);border-left:3px solid;margin-bottom:6px;}
+.lbG{background:var(--Gbg);border-left-color:var(--G);}
+.lbR{background:var(--Rbg);border-left-color:var(--R);}
+.lbA{background:var(--Abg);border-left-color:var(--A);}
+.lbB{background:var(--Bbg);border-left-color:var(--B);}
+.lbP{background:var(--Pbg);border-left-color:var(--P);}
+.lblbl{font-size:10px;font-weight:700;letter-spacing:.06em;margin-bottom:3px;}
+.lbG .lblbl{color:var(--Gtx);} .lbR .lblbl{color:var(--Rtx);} .lbA .lblbl{color:var(--Atx);}
+.lbB .lblbl{color:var(--Btx);} .lbP .lblbl{color:var(--Ptx);}
+.lbtx{font-size:12px;line-height:1.65;}
+.lbG .lbtx{color:var(--Gdk);} .lbR .lbtx{color:var(--Rdk);} .lbA .lbtx{color:var(--Adk);}
+.lbB .lbtx{color:var(--Btx);} .lbP .lbtx{color:var(--Ptx);}
+
+/* trap card */
+.trapcard{border-radius:var(--r);padding:12px 14px;background:var(--sf2);margin-bottom:8px;}
+.trapn{font-size:12px;font-weight:600;color:var(--tx);margin-bottom:5px;display:flex;align-items:center;gap:7px;}
+.trapb{font-size:12px;color:var(--tx2);line-height:1.6;}
+
+/* step */
+.step{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--bd);}
+.step:last-child{border-bottom:none;}
+.stepnum{width:26px;height:26px;border-radius:50%;background:var(--sf2);border:1px solid var(--bd);
+         display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;
+         color:var(--tx2);flex-shrink:0;}
+.steptx .st{font-size:13px;font-weight:600;color:var(--tx);margin-bottom:3px;}
+.steptx .ss{font-size:12px;color:var(--tx2);line-height:1.55;}
+
+/* cross-check */
+.crow{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--bd);}
+.crow:last-child{border-bottom:none;}
+.clabels{display:flex;gap:5px;flex-wrap:wrap;min-width:170px;}
+.carrow{font-size:18px;color:var(--tx3);}
+.ctxt{font-size:12px;color:var(--tx2);flex:1;line-height:1.5;}
+.csig{font-size:11px;font-weight:700;min-width:64px;text-align:right;}
+.csigS{color:var(--R);} .csigW{color:var(--A);} .csigN{color:var(--tx2);}
+
+/* loading */
+#loading{position:fixed;inset:0;background:var(--bg);
+         display:flex;align-items:center;justify-content:center;z-index:999;flex-direction:column;gap:12px;}
+.spin{width:32px;height:32px;border:3px solid var(--bd);border-top-color:var(--B);
+      border-radius:50%;animation:sp .8s linear infinite;}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* responsive */
+@media(max-width:680px){
+  .g4{grid-template-columns:1fr 1fr;}
+  .g3{grid-template-columns:1fr 1fr;}
+  .g2{grid-template-columns:1fr;}
+  .dcmet{grid-template-columns:1fr 1fr;}
+  .cflow{flex-direction:column;}
+  .cfn{border-right:none;border-bottom:1px solid var(--bd);}
+  .cfn:last-child{border-bottom:none;}
+}
+</style>
+</head>
+<body>
+<div id="loading"><div class="spin"></div><div style="font-size:13px;color:var(--tx2);">载入数据中…</div></div>
+<script>var _echartsLoaded=false;</script>
+<script src="echarts.min.js" onerror="_echartsLoaded=false" onload="_echartsLoaded=true"></script>
+
+<div class="topbar">
+  <div>
+    <div class="app-title">「待敌」市场分析系统</div>
+    <div class="app-sub">昔之善战者，先为不可胜，以待敌之可胜。 ——《孙子兵法·形篇》</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;">
+    <span class="ts" id="tsb">—</span>
+    <button class="btn" onclick="loadData()">刷新</button>
+  </div>
+</div>
+
+  <div class="nav">
+  <div class="nt on" onclick="showPage('ov',this)">总览</div>
+  <div class="nt" onclick="showPage('trend',this)">趋势判定</div>
+  <div class="nt" onclick="showPage('l0',this)">L0 风险</div>
+  <div class="nt" onclick="showPage('l1',this)">L1 实业数据</div>
+  <div class="nt" onclick="showPage('l2',this)">L2 金融期货</div>
+  <div class="nt" onclick="showPage('l3',this)">L3 产业链</div>
+  <div class="nt" onclick="showPage('l4',this)">L4 头部企业</div>
+  <div class="nt" onclick="showPage('l5',this)">L5 个股决策</div>
+  <div class="nt" onclick="showPage('logic',this)">逻辑链图谱</div>
+</div>
+
+<div class="main">
+  <div id="pg-ov"    class="page on"></div>
+  <div id="pg-trend" class="page"></div>
+  <div id="pg-l0"   class="page"></div>
+  <div id="pg-l1"   class="page"></div>
+  <div id="pg-l2"   class="page"></div>
+  <div id="pg-l3"   class="page"></div>
+  <div id="pg-l4"   class="page"></div>
+  <div id="pg-l5"   class="page"></div>
+  <div id="pg-logic" class="page"></div>
+  <div id="pg-cross" class="page"></div>
+  <div id="pg-trap"  class="page"></div>
+</div>
+
+<script>
+let D=null;
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+const h=s=>s||'';
+const fmtN=v=>v!=null?v.toLocaleString():'—';
+const fmtYoy=v=>v!=null?`<span style="color:${v>0?'var(--R)':'var(--G)'};">${v>0?'+':''}${v.toFixed(1)}%</span>`:'—';
+const fmtZ=v=>v!=null?`<span style="color:${Math.abs(v)>1.5?(v>0?'var(--R)':'var(--G)'):'var(--tx2)'};">${v>0?'+':''}${v.toFixed(2)}σ</span>`:'—';
+const sc=s=>s>=65?'var(--G)':s>=45?'var(--A)':'var(--R)';
+const l0c=l=>({GREEN:'var(--G)',YELLOW:'var(--A)',RED:'var(--R)'}[l]||'var(--tx2)');
+const sigTag=s=>{const m={UP:'tG',DOWN:'tR',NEUTRAL:'tN',ALERT_UP:'tG',ALERT_DOWN:'tR'};return`<span class="tag ${m[s]||'tN'}">${s}</span>`;};
+const dirTag=d=>{const m={BULLISH:'tG',BEARISH:'tR',NEUTRAL:'tN'};return`<span class="tag ${m[d]||'tN'}">${d}</span>`;};
+const vtag=v=>{const m={GO:'tG',WAIT:'tA',NO:'tR'};return`<span class="tag ${m[v]||'tN'}">${v}</span>`;};
+const ttag=t=>{const m={BREAKOUT:'tG',PULLBACK:'tB',ACCUMULATION:'tA',NONE:'tN'};return`<span class="tag ${m[t]||'tN'}">${t||'—'}</span>`;};
+const cfcls=s=>{if(s.includes('国际'))return'cfI';if(s.includes('上游'))return'cfU';if(s.includes('中游'))return'cfM';if(s.includes('下游'))return'cfD';if(s.includes('风险'))return'cfW';return'cfU';};
+
+// ── 总览 ─────────────────────────────────────────────────────────────────────
+function pgOv(){
+  const s=D.summary,l0=D.layer0,l1=D.layer1,l3=D.layer3,l5=D.layer5,t=D.trend;
+  const go=l5.filter(d=>d.verdict==='GO');
+  const totalAmt=go.reduce((a,d)=>a+(d.first_batch_cost||d.first_batch_amt||0),0);
+  const tcolor={GO:'var(--G)',WAIT:'var(--A)',NO:'var(--R)'}[t.verdict]||'var(--tx2)';
+  return`
+  <div class="g4" style="margin-bottom:14px;">
+    <div class="mc"><div class="ml">趋势判定</div>
+      <div class="mv" style="color:${tcolor};font-size:17px;">${t.verdict}</div>
+      <div class="ms">${t.trend} · 置信度${t.confidence}% · ${t.source}</div></div>
+    <div class="mc"><div class="ml">实业·期货信号</div>
+      <div class="mv">${s.l1_score}<span style="font-size:13px;font-weight:400;color:var(--tx2);"> / ${s.l2_score}</span></div>
+      <div class="ms" style="color:${Math.abs(s.l1_score-s.l2_score)>25?'var(--A)':'var(--G)'};">${Math.abs(s.l1_score-s.l2_score)>25?'⚠ 两层背离':'✓ 方向一致'}</div></div>
+    <div class="mc"><div class="ml">激活产业链</div>
+      <div class="mv" style="color:var(--G);">${s.active_chains}</div>
+      <div class="ms">${l3.top_nodes[0]?.chain||'—'} 信号最强</div></div>
+    <div class="mc"><div class="ml">可入场标的</div>
+      <div class="mv" style="color:${go.length?'var(--G)':'var(--tx2)'};">${go.length}</div>
+      <div class="ms">首批合计 ¥${totalAmt.toLocaleString()}</div></div>
+  </div>
+
+  ${t.reasoning?`<div class="lblock lb${t.verdict==='GO'?'G':t.verdict==='WAIT'?'A':'R'}" style="margin-bottom:12px;">
+    <div class="lblbl">AI 趋势分析 · ${t.trend} · 置信度${t.confidence}%</div>
+    <div class="lbtx">${t.reasoning}</div>
+  </div>`:''}
+
+  ${l0.triggered.length?`<div class="abox aR" style="margin-bottom:12px;">
+    <div class="dot dR" style="margin-top:5px;"></div>
+    <div><div style="font-weight:700;color:var(--Rtx);margin-bottom:3px;">Layer 0 风险触发</div>
+    ${l0.triggered.map(t=>`<div style="font-size:12px;color:var(--Rdk);">${t}</div>`).join('')}</div></div>`:''}
+
+  ${l1.alerts.length?`<div class="card"><div class="ct">⚡ 实业数据异动（超出季节性均值±1.5σ）</div>
+    ${l1.alerts.map(a=>`<div class="abox ${a.signal.includes('UP')?'aG':'aR'}" style="margin-bottom:6px;">
+      <div class="dot ${a.signal.includes('UP')?'dG':'dR'}" style="margin-top:4px;"></div>
+      <div><div style="font-weight:600;font-size:13px;color:${a.signal.includes('UP')?'var(--Gtx)':'var(--Rtx)'};">${a.name}：${a.value} ${a.unit} （偏离 ${a.zscore!=null?(a.zscore>0?'+':'')+a.zscore.toFixed(2):'?'}σ）</div>
+      <div style="font-size:12px;color:${a.signal.includes('UP')?'var(--Gdk)':'var(--Rdk)'};">${a.note}</div></div></div>`).join('')}
+  </div>`:''}
+
+  <div class="card"><div class="ct">当前最佳布局节点</div>
+    ${l3.top_nodes.map(n=>`
+    <div style="display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid var(--bd);">
+      <div style="width:38px;height:38px;border-radius:50%;background:var(--Bbg);color:var(--Btx);
+           display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;">${n.strength}</div>
+      <div style="flex:1;">
+        <div style="font-weight:700;">${n.chain} <span style="font-size:12px;font-weight:400;color:var(--tx2);">· ${n.node}</span></div>
+        <div style="font-size:12px;color:var(--tx2);margin-top:2px;">${n.window}</div>
+        ${n.reasoning?`<div style="font-size:11px;color:var(--tx3);margin-top:4px;line-height:1.5;">${n.reasoning}</div>`:''}
+      </div>
+      ${n.l2_aligned?'<span class="tag tG">L2确认</span>':'<span class="tag tN">L2待确认</span>'}
+    </div>`).join('')}
+  </div>
+
+  ${go.length?`<div class="card"><div class="ct">✅ GO 标的速览</div>
+    ${go.map(d=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--bd);">
+      <div><span style="font-weight:700;">${d.name}</span>
+        <span style="font-size:11px;color:var(--tx2);margin-left:6px;">${d.code} · ${d.chain}</span>
+        <div style="font-size:12px;color:var(--tx2);margin-top:2px;">${d.reason}</div></div>
+      <div style="text-align:right;flex-shrink:0;margin-left:12px;">
+        <div style="font-size:17px;font-weight:700;color:var(--G);">${d.position_pct.toFixed(1)}%</div>
+        <div style="font-size:11px;color:var(--tx2);">首批 ¥${(d.first_batch_cost||d.first_batch_amt||0).toLocaleString()}${d.first_batch_lots?' · '+d.first_batch_lots+'手':''}</div>
+      </div>
+    </div>`).join('')}
+  </div>`:`<div class="abox aA"><div class="dot dA" style="margin-top:4px;"></div>
+    <div style="font-size:13px;color:var(--Atx);">当前无 GO 标的，所有标的处于观察状态。继续等待时机信号触发。</div></div>`}`;
+}
+
+// ── 趋势判定 ──────────────────────────────────────────────────────────────────
+function pgTrend(){
+  const t=D.trend,l3=D.layer3;
+  const tcolor={GO:'var(--G)',WAIT:'var(--A)',NO:'var(--R)'}[t.verdict]||'var(--tx2)';
+  const tbg={GO:'aG',WAIT:'aA',NO:'aR'}[t.verdict]||'aN';
+  const tlbl={GO:'lbG',WAIT:'lbA',NO:'lbR'}[t.verdict]||'lbB';
+  return`
+  <div class="g4" style="margin-bottom:14px;">
+    <div class="mc" style="grid-column:span 2;">
+      <div class="ml">综合判定</div>
+      <div class="mv" style="color:${tcolor};font-size:28px;">${t.verdict}</div>
+      <div class="ms">${t.action||'—'}</div>
+    </div>
+    <div class="mc"><div class="ml">趋势方向</div>
+      <div class="mv" style="font-size:17px;">${t.trend}</div></div>
+    <div class="mc"><div class="ml">置信度</div>
+      <div class="mv" style="color:${t.confidence>=70?'var(--G)':t.confidence>=50?'var(--A)':'var(--R)'};">${t.confidence}%</div>
+      <div class="ms">来源：${t.source}</div></div>
+  </div>
+
+  <div class="card" style="margin-bottom:12px;">
+    <div class="ct">AI 推理过程</div>
+    <div class="lblock ${tlbl}" style="margin-bottom:8px;">
+      <div class="lblbl">综合分析</div>
+      <div class="lbtx">${t.reasoning||'暂无分析数据'}</div>
+    </div>
+    ${t.key_signals&&t.key_signals.length?`
+    <div style="font-size:12px;font-weight:700;color:var(--tx2);margin:10px 0 6px;">关键信号</div>
+    ${t.key_signals.map(s=>`<div class="abox aB" style="margin-bottom:4px;padding:8px 12px;">
+      <div style="font-size:12px;color:var(--Btx);">${s}</div>
+    </div>`).join('')}`:''}
+  </div>
+
+  <div class="g2" style="margin-bottom:12px;">
+    <div class="card">
+      <div class="ct">风险因素</div>
+      ${t.risks&&t.risks.length?t.risks.map(r=>`
+      <div class="abox aR" style="margin-bottom:4px;padding:8px 12px;">
+        <div class="dot dR" style="margin-top:4px;"></div>
+        <div style="font-size:12px;color:var(--Rdk);">${r}</div>
+      </div>`).join(''):'<div style="font-size:12px;color:var(--tx3);">暂无</div>'}
+    </div>
+    <div class="card">
+      <div class="ct">机会因素</div>
+      ${t.opportunities&&t.opportunities.length?t.opportunities.map(o=>`
+      <div class="abox aG" style="margin-bottom:4px;padding:8px 12px;">
+        <div class="dot dG" style="margin-top:4px;"></div>
+        <div style="font-size:12px;color:var(--Gdk);">${o}</div>
+      </div>`).join(''):'<div style="font-size:12px;color:var(--tx3);">暂无</div>'}
+    </div>
+  </div>
+
+  ${l3.market_narrative?`<div class="card" style="margin-bottom:12px;">
+    <div class="ct">市场叙事（AI 产业链分析）</div>
+    <div class="lblock lbP" style="margin-bottom:0;">
+      <div class="lblbl">主线逻辑</div>
+      <div class="lbtx">${l3.market_narrative}</div>
+    </div>
+  </div>`:''}
+
+  ${l3.cross_signals&&l3.cross_signals.length?`<div class="card">
+    <div class="ct">跨链信号</div>
+    ${l3.cross_signals.map(s=>`<div style="padding:6px 0;border-bottom:1px solid var(--bd);font-size:12px;color:var(--tx2);">${s}</div>`).join('')}
+  </div>`:''}`;
+}
+
+// ── L0 ───────────────────────────────────────────────────────────────────────
+function pgL0(){
+  const l0=D.layer0;
+  return`
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap;">
+      <div style="width:56px;height:56px;border-radius:50%;
+           background:${l0.level==='GREEN'?'var(--Gbg)':l0.level==='YELLOW'?'var(--Abg)':'var(--Rbg)'};
+           display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <div style="font-size:18px;font-weight:700;color:${l0c(l0.level)};">${l0.score}</div></div>
+      <div><div style="font-size:18px;font-weight:700;color:${l0c(l0.level)};">${l0.level}</div>
+        <div style="font-size:13px;color:var(--tx2);margin-top:2px;">${l0.note}</div></div>
+    </div>
+    <div class="g4">
+      <div class="mc"><div class="ml">上证5日涨跌</div>
+        <div class="mv" style="color:${(l0.env.index_5d_chg||0)>0?'var(--R)':'var(--G)'};">${l0.env.index_5d_chg||0}%</div></div>
+      <div class="mc"><div class="ml">单日最大跌幅</div>
+        <div class="mv" style="color:${(l0.env.max_1d_drop||0)<-2?'var(--R)':'var(--tx)'};">${l0.env.max_1d_drop||0}%</div></div>
+      <div class="mc"><div class="ml">QVIX波动率</div>
+        <div class="mv" style="color:${(l0.env.vix||0)>20?'var(--R)':(l0.env.vix||0)<14?'var(--G)':'var(--tx)'};">${l0.env.vix||'—'}</div></div>
+      <div class="mc"><div class="ml">美元/人民币</div>
+        <div class="mv">${l0.env.usdcny||'—'}</div></div>
+    </div>
+  </div>
+
+  <div class="card"><div class="ct">否决规则（触发任意一条 → 全框架暂停）</div>
+    <div class="lblock lbR"><div class="lblbl">硬性止损（不可覆盖）</div>
+      <div class="lbtx">单笔持仓亏损超过预设阈值（6-8%）→ 无条件止损，禁止补仓等待。单一板块仓位上限20%，单一个股上限10%。触发后该标的本周期冷却，不再评估。</div></div>
+    <div class="lblock lbR"><div class="lblbl">系统性风险否决（全市场）</div>
+      <div class="lbtx">以下任一触发 → 所有多头信号无效，仓位降至0-10%：大盘单日跌超3%且放量；汇率单日波动超1%；央行发出明确收紧信号；VIX/QVIX突破20；地缘冲突升级影响供应链。</div></div>
+    <div class="lblock lbA"><div class="lblbl">仓位动态管理</div>
+      <div class="lbtx">做多环境（L0评分≥75）：最大仓位60%。震荡环境（40-75）：最大仓位30%。高风险（&lt;40）：最大仓位10%。L1-L5通过层数越多，单笔仓位上限越高。</div></div>
+    <div class="lblock lbA"><div class="lblbl">信号失效条件</div>
+      <div class="lbtx">入场依据的实业数据连续2个月反向 → 逻辑失效，减仓一半。期货与实业数据持续背离超6周 → 重新评估，暂停加仓。龙头企业财报与产业链数据严重不符 → 警戒状态。</div></div>
+  </div>
+
+  <div class="card"><div class="ct">当前状态</div>
+    ${l0.triggered.length?l0.triggered.map(t=>`
+    <div class="abox aR" style="margin-bottom:6px;"><div class="dot dR" style="margin-top:4px;"></div>
+      <div style="font-size:12px;color:var(--Rdk);">${t}</div></div>`).join('')
+    :`<div class="abox aG"><div class="dot dG" style="margin-top:4px;"></div>
+      <div style="font-size:13px;color:var(--Gtx);">无风险规则触发，大盘环境正常，Layer 0 绿灯</div></div>`}
+  </div>`;
+}
+
+// ── L1 ───────────────────────────────────────────────────────────────────────
+function pgL1(){
+  const l1=D.layer1;
+  const all=Object.values(l1.groups).flat();
+  const gnames={food:'食品板块',bulk:'大宗商品',macro:'宏观货币',infra:'基建需求',electricity:'全国用电量',logistics:'物流运价'};
+  return`
+  <div class="g4" style="margin-bottom:12px;">
+    <div class="mc"><div class="ml">综合评分</div><div class="mv" style="color:${sc(l1.score)};">${l1.score}<span style="font-size:12px;font-weight:400;color:var(--tx2);">/100</span></div></div>
+    <div class="mc"><div class="ml">上行信号</div><div class="mv" style="color:var(--G);">${all.filter(i=>i.signal.includes('UP')).length}</div></div>
+    <div class="mc"><div class="ml">下行信号</div><div class="mv" style="color:var(--R);">${all.filter(i=>i.signal.includes('DOWN')).length}</div></div>
+    <div class="mc"><div class="ml">季节性异动</div><div class="mv" style="color:${l1.alerts.length?'var(--A)':'var(--tx2)'};">${l1.alerts.length}</div><div class="ms">超出±1.5σ</div></div>
+  </div>
+
+  <div class="card" style="margin-bottom:12px;"><div class="ct">异动识别方法：同比偏离度（Z-score）</div>
+    <div class="lblock lbB"><div class="lblbl">为什么不看绝对值</div>
+      <div class="lbtx">用电量夏季空调、冬季供暖天然造成波峰，猪价有春节规律，钢价有年初复工规律——绝对值没有比较意义。正确方法：对每个指标计算过去3年同月均值和标准差，建立"正常区间"。今年偏离超出±1.5σ才触发信号，±2σ触发红色异动。</div></div>
+    <div class="g2" style="margin-top:8px;">
+      <div class="lblock lbG" style="margin:0;"><div class="lblbl">阈值说明</div>
+        <div class="lbtx">偏离 &lt;1.5σ = 正常季节性波动。&gt;1.5σ = 黄色信号（UP/DOWN）。&gt;2σ = 红色异动（ALERT）。</div></div>
+      <div class="lblock lbR" style="margin:0;"><div class="lblbl">量价同步原则</div>
+        <div class="lbtx">量升价涨=真实需求。量升价跌=供给过剩。量跌价涨=供给收缩。单看价格容易误判。</div></div>
+    </div>
+  </div>
+
+  ${Object.entries(l1.groups).map(([key,inds])=>`
+  <div class="card">
+    <div class="ct">${gnames[key]||key}</div>
+    <table>
+      <tr><th>指标</th><th>数值</th><th>同比</th><th>偏离σ</th><th>信号</th><th>深层含义</th><th>来源</th></tr>
+      ${inds.map(i=>`<tr>
+        <td style="font-weight:600;">${i.name}</td>
+        <td>${i.value}<span style="color:var(--tx2);font-size:11px;"> ${i.unit}</span></td>
+        <td>${fmtYoy(i.yoy)}</td>
+        <td>${fmtZ(i.zscore)}</td>
+        <td>${sigTag(i.signal)}</td>
+        <td style="color:var(--tx2);font-size:12px;">${i.note}</td>
+        <td style="color:var(--tx3);font-size:11px;">${i.source}</td>
+      </tr>`).join('')}
+    </table>
+  </div>`).join('')}`;
+}
+
+// ── L2 ───────────────────────────────────────────────────────────────────────
+function pgL2(){
+  const l2=D.layer2;
+  const divBad=l2.divergence.includes('背离');
+  return`
+  <div class="g4" style="margin-bottom:12px;">
+    <div class="mc"><div class="ml">综合评分</div><div class="mv" style="color:${sc(l2.score)};">${l2.score}<span style="font-size:12px;font-weight:400;color:var(--tx2);">/100</span></div></div>
+    <div class="mc"><div class="ml">BULLISH信号</div><div class="mv" style="color:var(--G);">${[...l2.intl,...l2.futures,...(l2.bank||[])].filter(s=>s.direction==='BULLISH').length}</div></div>
+    <div class="mc"><div class="ml">BEARISH信号</div><div class="mv" style="color:var(--R);">${[...l2.intl,...l2.futures,...(l2.bank||[])].filter(s=>s.direction==='BEARISH').length}</div></div>
+    <div class="mc"><div class="ml">与L1背离</div><div class="mv" style="font-size:14px;color:${divBad?'var(--A)':'var(--G)'};">${divBad?'⚠ 背离':'✓ 一致'}</div></div>
+  </div>
+
+  <div class="lblock ${divBad?'lbA':'lbG'}" style="margin-bottom:12px;">
+    <div class="lblbl">L1 / L2 跨层一致性检验</div>
+    <div class="lbtx">${l2.divergence}</div>
+  </div>
+
+  <div class="card" style="margin-bottom:12px;"><div class="ct">Layer 2 的定位</div>
+    <div class="lblock lbP"><div class="lblbl">Layer 1 vs Layer 2</div>
+      <div class="lbtx">Layer 1 是"发生了什么"——实体经济的真实温度。Layer 2 是"资金认为会发生什么"——全球聪明钱的集体判断。两层同向 = 强信号可以加仓。两层背离 = 等待收敛再行动，不要在背离时下重注。</div></div>
+    <div class="lblock lbB"><div class="lblbl">与Layer 1 的分工（不重叠原则）</div>
+      <div class="lbtx">Layer 1 看实业现货数据（农产品、螺纹钢现货、用电量）。Layer 2 看纯金融期货（股指期货、外汇、黄金、原油）。LME铜在这里看期货曲线形态和持仓结构，与Layer 1 看库存和实业需求是两个维度，互补不重叠。</div></div>
+  </div>
+
+  <div class="card"><div class="ct">国际信号</div>
+    <table>
+      <tr><th>指标</th><th>数值</th><th>变动</th><th>方向</th><th>A股传导含义</th></tr>
+      ${l2.intl.map(s=>`<tr>
+        <td style="font-weight:600;">${s.name}</td>
+        <td>${s.value}<span style="font-size:11px;color:var(--tx2);"> ${s.unit}</span></td>
+        <td>${s.change!=null?`<span style="color:${s.change>0?'var(--R)':'var(--G)'};">${s.change>0?'+':''}${s.change.toFixed(2)}</span>`:'—'}</td>
+        <td>${dirTag(s.direction)}</td>
+        <td style="font-size:12px;color:var(--tx2);">${s.impact}</td>
+      </tr>`).join('')}
+    </table>
+  </div>
+
+  <div class="card"><div class="ct">股指期货基差（读懂机构实时判断）</div>
+    <div class="lblock lbB" style="margin-bottom:10px;"><div class="lblbl">基差含义</div>
+      <div class="lbtx">正常情况期货应略高于现货（持有成本）。贴水（期货低于现货）= 机构在做空对冲，悲观情绪主导。升水（期货高于现货）= 机构看多，愿意提前布局。贴水从大幅收窄往往是行情启动前的先行信号，比K线早1-2周。</div></div>
+    <table>
+      <tr><th>合约</th><th>基差（点）</th><th>基差%</th><th>方向</th><th>含义</th></tr>
+      ${l2.futures.map(s=>`<tr>
+        <td style="font-weight:600;">${s.name}</td>
+        <td style="color:${s.value<0?'var(--R)':'var(--G)'};">${s.value>0?'+':''}${s.value}</td>
+        <td>${s.change!=null?s.change.toFixed(2)+'%':'—'}</td>
+        <td>${dirTag(s.direction)}</td>
+        <td style="font-size:12px;color:var(--tx2);">${s.impact}</td>
+      </tr>`).join('')}
+    </table>
+  </div>
+
+  ${l2.bank&&l2.bank.length?`<div class="card"><div class="ct">🏦 银行/信用信号</div>
+    <table>
+      <tr><th>指标</th><th>数值</th><th>变动</th><th>方向</th><th>深层含义</th></tr>
+      ${l2.bank.map(s=>`<tr>
+        <td style="font-weight:600;">${s.name}</td>
+        <td>${s.value}<span style="font-size:11px;color:var(--tx2);"> ${s.unit}</span></td>
+        <td>${s.change!=null?`<span style="color:${s.change>0?'var(--R)':'var(--G)'};">${s.change>0?'+':''}${s.change}</span>`:'—'}</td>
+        <td>${dirTag(s.direction)}</td>
+        <td style="font-size:12px;color:var(--tx2);line-height:1.5;">${s.impact}</td>
+      </tr>`).join('')}
+    </table>
+  </div>`:''}`;
+}
+
+// ── L3 ───────────────────────────────────────────────────────────────────────
+function pgL3(){
+  const l3=D.layer3;
+  return`
+  <div class="g4" style="margin-bottom:12px;">
+    <div class="mc"><div class="ml">激活产业链</div><div class="mv" style="color:var(--G);">${l3.active.length}</div></div>
+    <div class="mc"><div class="ml">待激活</div><div class="mv" style="color:var(--tx2);">${l3.inactive.length}</div></div>
+    <div class="mc"><div class="ml">最强信号</div><div class="mv" style="font-size:14px;">${l3.active[0]?.name||'—'}</div></div>
+    <div class="mc"><div class="ml">当前最强信号强度</div><div class="mv" style="color:${sc(l3.active[0]?.strength||0)};">${l3.active[0]?.strength||0}</div></div>
+  </div>
+
+  <div class="lblock lbP" style="margin-bottom:12px;"><div class="lblbl">Layer 3 核心价值：传导顺序模型</div>
+    <div class="lbtx">产业链不是静态图，而是有时序的传导链。上游异动到下游反应有时间差，这个时间差就是散户的操作窗口。绿色=上游（领先），黄色=中游（同步），蓝色=下游（滞后），紫色=国际信号源，红色=风险节点。高亮边框=当前活跃节点。</div></div>
+
+  ${l3.active.map(c=>`
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+      <div>
+        <span style="font-weight:700;font-size:15px;">${c.name}</span>
+        <span style="font-size:12px;color:var(--tx2);margin-left:8px;">${c.desc}</span>
+      </div>
+      <div class="brow" style="width:130px;">
+        <div class="bbg"><div class="bfill ${c.strength>=70?'fG':c.strength>=50?'fA':'fR'}" style="width:${c.strength}%;"></div></div>
+        <span style="font-size:12px;color:var(--tx2);">${c.strength}</span>
+      </div>
+    </div>
+    <div style="font-size:12px;color:var(--tx2);margin-bottom:10px;padding:8px 12px;background:var(--sf2);border-radius:var(--r);">
+      当前节点：<strong>${c.node}</strong>　操作窗口：${c.window}
+    </div>
+    ${c.reasoning?`<div style="font-size:12px;color:var(--Btx);margin-bottom:10px;padding:8px 12px;background:var(--Bbg);border-radius:var(--r);line-height:1.6;">
+      <span style="font-weight:600;">AI 分析：</span>${c.reasoning}
+    </div>`:''}
+    <div class="cflow">
+      ${c.nodes.map(n=>`
+      <div class="cfn ${cfcls(n.stage)} ${n.active?'active':''}">
+        <div class="cfs">${n.stage}</div>
+        <div class="cfname">${n.name}</div>
+        <div class="cfd">${n.detail}</div>
+        <div class="cft">${n.lead}</div>
+        ${n.stocks.length?`<div style="font-size:9px;margin-top:3px;opacity:.6;">${n.stocks.join(' ')}</div>`:''}
+      </div>`).join('')}
+    </div>
+  </div>`).join('')}
+
+  ${l3.inactive.length?`<div class="card"><div class="ct">暂未激活</div>
+    ${l3.inactive.map(c=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--bd);">
+      <div><span style="font-weight:600;">${c.name}</span>
+        <span style="font-size:12px;color:var(--tx2);margin-left:8px;">${c.desc}</span></div>
+      <div class="brow" style="width:100px;flex-shrink:0;margin-left:12px;">
+        <div class="bbg"><div class="bfill fN" style="width:${c.strength}%;"></div></div>
+        <span style="font-size:11px;color:var(--tx2);">${c.strength}</span>
+      </div>
+    </div>`).join('')}
+  </div>`:''}`;
+}
+
+// ── L4 ───────────────────────────────────────────────────────────────────────
+function pgL4(){
+  const pf=D.layer4;
+  const real=pf.filter(p=>p.verdict==='REAL');
+  const watch=pf.filter(p=>p.verdict==='WATCH');
+  const fake=pf.filter(p=>p.verdict==='FAKE');
+  const card=p=>`
+  <div class="card" style="margin-bottom:8px;">
+    <div class="dch">
+      <div>
+        <div style="font-weight:700;font-size:15px;">${p.name}
+          <span style="font-size:12px;font-weight:400;color:var(--tx2);margin-left:6px;">${p.code}</span>
+        </div>
+        <div style="font-size:12px;color:var(--tx2);">${p.chain} · ${p.node}</div>
+        <div style="font-size:12px;color:var(--tx2);margin-top:2px;">${p.note}</div>
+      </div>
+      <span class="tag ${p.verdict==='REAL'?'tG':p.verdict==='WATCH'?'tA':'tR'}">${p.verdict==='REAL'?'真头部':p.verdict==='WATCH'?'谨慎关注':'概念股'}</span>
+    </div>
+    <div class="g4" style="margin-bottom:10px;">
+      ${[['收入结构',p.scores.revenue],['客户名单',p.scores.client],['毛利率',p.scores.margin],['资本开支',p.scores.capex]].map(([l,v])=>`
+      <div class="mc"><div class="ml">${l}</div>
+        <div class="mv" style="font-size:16px;color:${v>=22?'var(--G)':v>=15?'var(--A)':'var(--R)'};">${v}<span style="font-size:11px;font-weight:400;color:var(--tx2);">/25</span></div>
+        <div style="height:3px;background:var(--bd);border-radius:2px;margin-top:6px;overflow:hidden;">
+          <div style="height:100%;width:${v/25*100}%;background:${v>=22?'var(--G)':v>=15?'var(--A)':'var(--R)'};border-radius:2px;"></div>
+        </div>
+      </div>`).join('')}
+    </div>
+    ${p.financials?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
+      ${p.financials.gross_margin?`<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:var(--Bbg);color:var(--Btx);">毛利率 ${p.financials.gross_margin.toFixed(1)}%</span>`:''}
+      ${p.financials.roe?`<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:var(--Bbg);color:var(--Btx);">ROE ${p.financials.roe.toFixed(1)}%</span>`:''}
+      ${p.financials.rev_yoy?`<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:${p.financials.rev_yoy>0?'var(--Gbg)':'var(--Rbg)'};color:${p.financials.rev_yoy>0?'var(--Gtx)':'var(--Rtx)'};">营收同比 ${p.financials.rev_yoy>0?'+':''}${p.financials.rev_yoy.toFixed(1)}%</span>`:''}
+      ${p.financials.profit_yoy?`<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:${p.financials.profit_yoy>0?'var(--Gbg)':'var(--Rbg)'};color:${p.financials.profit_yoy>0?'var(--Gtx)':'var(--Rtx)'};">净利同比 ${p.financials.profit_yoy>0?'+':''}${p.financials.profit_yoy.toFixed(1)}%</span>`:''}
+      ${p.financials.debt_ratio?`<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:var(--sf2);color:var(--tx2);">负债率 ${p.financials.debt_ratio.toFixed(1)}%</span>`:''}
+      ${p.financials.pe!=null?`<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:${p.financials.pe>100?'var(--Rbg)':'var(--sf2)'};color:${p.financials.pe>100?'var(--Rtx)':'var(--tx2)'};">PE ${p.financials.pe.toFixed(0)}x</span>`:'<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:var(--sf2);color:var(--tx2);">PE N/A</span>'}
+      ${p.financials.mktcap?`<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:var(--sf2);color:var(--tx2);">市值 ${p.financials.mktcap}</span>`:''}
+      ${p.financials.cash_flow_ratio!=null?`<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:${p.financials.cash_flow_ratio>=0.8?'var(--Gbg)':'var(--Rbg)'};color:${p.financials.cash_flow_ratio>=0.8?'var(--Gtx)':'var(--Rtx)'};">现金流/利润 ${p.financials.cash_flow_ratio.toFixed(2)}</span>`:'<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:var(--sf2);color:var(--tx2);">现金流 N/A</span>'}
+      <span style="font-size:10px;padding:2px 5px;border-radius:3px;background:var(--Pbg);color:var(--Ptx);">${p.data_source==='auto'?'自动评分':'静态评分'}</span>
+    </div>`:''}
+    ${p.tech_summary?`<div style="margin-bottom:8px;padding:8px 12px;border-radius:var(--r);background:var(--Bbg);border-left:3px solid var(--B);">
+      <div style="font-size:11px;font-weight:700;color:var(--Btx);margin-bottom:3px;">📊 技术面分析</div>
+      <div style="font-size:12px;color:var(--tx2);line-height:1.6;">${p.tech_summary}</div>
+    </div>`:''}
+    ${p.deep_financial?`<div style="margin-bottom:8px;padding:8px 12px;border-radius:var(--r);background:var(--Pbg);border-left:3px solid var(--P);">
+      <div style="font-size:11px;font-weight:700;color:var(--Ptx);margin-bottom:3px;">🔍 深度财务分析</div>
+      <div style="font-size:12px;color:var(--tx2);line-height:1.6;">${p.deep_financial}</div>
+    </div>`:''}
+    ${p.green_flags.length?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">
+      ${p.green_flags.map(f=>`<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:var(--Gbg);color:var(--Gtx);">✓ ${f}</span>`).join('')}
+    </div>`:''}
+    ${p.red_flags.length?`<div style="display:flex;flex-wrap:wrap;gap:4px;">
+      ${p.red_flags.map(f=>`<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:var(--Rbg);color:var(--Rtx);">⚠ ${f}</span>`).join('')}
+    </div>`:''}
+    <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid var(--bd);">
+      <span style="font-size:12px;color:var(--tx2);">综合评分</span>
+      <span style="font-size:22px;font-weight:700;color:${p.scores.total>=85?'var(--G)':p.scores.total>=70?'var(--A)':'var(--R)'};">${p.scores.total}</span>
+      <span style="font-size:12px;color:var(--tx2);">/100</span>
+    </div>
+    ${p.kline&&p.kline.length>5?`<div id="kline-l4-${p.code}" style="width:100%;height:260px;margin-top:10px;"></div>`:''}
+  </div>`;
+  return`
+  <div class="g4" style="margin-bottom:12px;">
+    <div class="mc"><div class="ml">真头部</div><div class="mv" style="color:var(--G);">${real.length}</div></div>
+    <div class="mc"><div class="ml">谨慎关注</div><div class="mv" style="color:var(--A);">${watch.length}</div></div>
+    <div class="mc"><div class="ml">概念股</div><div class="mv" style="color:${fake.length?'var(--R)':'var(--tx2)'};">${fake.length}</div></div>
+    <div class="mc"><div class="ml">平均评分</div><div class="mv">${Math.round(pf.reduce((a,p)=>a+p.scores.total,0)/pf.length)}</div></div>
+  </div>
+  <div class="lblock lbP" style="margin-bottom:12px;"><div class="lblbl">四道过滤器原则</div>
+    <div class="lbtx">①收入结构：该业务占比>30%且持续增长（看季报分部，不看公告）。②客户名单：前五大客户必须是行业最挑剔的买家，大客户采购关系可验证。③毛利率趋势：真头部景气期扩张、低谷期不崩，持续低于同行且下行=无定价权。④资本开支：真头部在景气周期前就开始扩产，不是等股价涨了才宣布计划，看现金流量表。</div></div>
+  ${real.map(card).join('')}
+  ${watch.length?`<div style="font-size:13px;font-weight:700;color:var(--Atx);margin:10px 0 6px;">⚠ 谨慎关注</div>${watch.map(card).join('')}`:''}
+  ${fake.length?`<div style="font-size:13px;font-weight:700;color:var(--Rtx);margin:10px 0 6px;">🚫 已过滤</div>${fake.map(card).join('')}`:''}`;
+}
+
+// ── L5 ───────────────────────────────────────────────────────────────────────
+function pgL5(){
+  const ds=D.layer5;const cap=D.meta.capital;
+  const go=ds.filter(d=>d.verdict==='GO');
+  const wait=ds.filter(d=>d.verdict==='WAIT');
+  const no=ds.filter(d=>d.verdict==='NO');
+  const totalAmt=go.reduce((a,d)=>a+(d.first_batch_cost||d.first_batch_amt||0),0);
+  const dcCard=d=>`
+  <div class="dc dc${d.verdict}">
+    <div class="dch">
+      <div>
+        <div class="dcname">${d.name} <span style="font-size:12px;font-weight:400;color:var(--tx2);">${d.code}</span></div>
+        <div class="dcsub">${d.chain}</div>
+      </div>
+      ${vtag(d.verdict)}
+    </div>
+    <div class="lcs">
+      <span class="lc ${d.layers.l0?'lcP':'lcF'}">${d.layers.l0?'✓':'✗'} L0</span>
+      <span class="lc ${d.layers.l1?'lcP':'lcF'}">${d.layers.l1?'✓':'✗'} L1</span>
+      <span class="lc ${d.layers.l2?'lcP':'lcF'}">${d.layers.l2?'✓':'✗'} L2</span>
+      <span class="lc ${d.layers.l3?'lcP':'lcF'}">${d.layers.l3?'✓':'✗'} L3</span>
+      <span class="lc ${d.layers.l4>=75?'lcP':'lcF'}">L4·${d.layers.l4}分</span>
+      ${ttag(d.timing)}
+    </div>
+    <div class="dcmet">
+      <div class="dcm"><div class="dcml">建议仓位</div><div class="dcmv" style="color:${d.verdict==='GO'?'var(--G)':'var(--tx2)'};">${d.position_pct.toFixed(1)}%</div></div>
+      <div class="dcm"><div class="dcml">当前股价</div><div class="dcmv">${d.current_price?d.current_price.toFixed(2):'—'}</div></div>
+      <div class="dcm"><div class="dcml">首批手数</div><div class="dcmv" style="color:${d.verdict==='GO'?'var(--G)':'var(--tx2)'};">${d.first_batch_lots||0}手</div></div>
+      <div class="dcm"><div class="dcml">首批金额</div><div class="dcmv">¥${(d.first_batch_cost||d.first_batch_amt).toLocaleString()}</div></div>
+    </div>
+    ${d.stop_loss_price?`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px;">
+      <div class="dcm"><div class="dcml">止损价位</div><div class="dcmv" style="color:var(--R);">${d.stop_loss_price.toFixed(2)}</div></div>
+      <div class="dcm"><div class="dcml">止损距离</div><div class="dcmv">-${d.stop_loss_pct}%</div></div>
+      <div class="dcm"><div class="dcml">单笔最大亏损</div><div class="dcmv" style="color:var(--R);">¥${(d.max_loss_amount||0).toLocaleString()}</div></div>
+      <div class="dcm"><div class="dcml">每手成本</div><div class="dcmv">¥${d.current_price?(d.current_price*100).toFixed(0):'—'}</div></div>
+    </div>`:''}
+    ${(d.pe!=null||d.cash_flow_ratio!=null||d.debt_ratio)?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
+      ${d.pe!=null?`<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:${d.pe>100||d.pe<0?'var(--Rbg)':'var(--Bbg)'};color:${d.pe>100||d.pe<0?'var(--Rtx)':'var(--Btx)'};">PE ${d.pe.toFixed(0)}x</span>`:'<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:var(--sf2);color:var(--tx2);">PE N/A</span>'}
+      ${d.cash_flow_ratio!=null?`<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:${d.cash_flow_ratio>=0.8?'var(--Gbg)':'var(--Rbg)'};color:${d.cash_flow_ratio>=0.8?'var(--Gtx)':'var(--Rtx)'};">现金流/利润 ${d.cash_flow_ratio.toFixed(2)}</span>`:'<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:var(--sf2);color:var(--tx2);">现金流 N/A</span>'}
+      ${d.debt_ratio?`<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:${d.debt_ratio>70?'var(--Rbg)':'var(--sf2)'};color:${d.debt_ratio>70?'var(--Rtx)':'var(--tx2)'};">负债率 ${d.debt_ratio.toFixed(1)}%</span>`:''}
+    </div>`:''}
+    <div class="dca ${d.verdict==='GO'?'daG':d.verdict==='WAIT'?'daA':'daR'}">
+      <strong>${d.verdict==='GO'?'执行：':d.verdict==='WAIT'?'等待：':'拒绝：'}</strong>${d.action}
+      <div style="font-size:11px;margin-top:3px;opacity:.8;">${d.reason}</div>
+    </div>
+    ${d.tech_summary?`<div style="margin-top:8px;padding:8px 12px;border-radius:var(--r);background:var(--Bbg);border-left:3px solid var(--B);">
+      <div style="font-size:11px;font-weight:700;color:var(--Btx);margin-bottom:2px;">📊 技术面</div>
+      <div style="font-size:12px;color:var(--tx2);line-height:1.5;">${d.tech_summary}</div>
+    </div>`:''}
+    ${d.deep_financial?`<div style="margin-top:6px;padding:8px 12px;border-radius:var(--r);background:var(--Pbg);border-left:3px solid var(--P);">
+      <div style="font-size:11px;font-weight:700;color:var(--Ptx);margin-bottom:2px;">🔍 深度财务</div>
+      <div style="font-size:12px;color:var(--tx2);line-height:1.5;">${d.deep_financial}</div>
+    </div>`:''}
+    ${d.kline&&d.kline.length>5?`<div id="kline-${d.code}" style="width:100%;height:320px;margin-top:10px;"></div>`:''}
+  </div>`;
+  return`
+  <div class="g4" style="margin-bottom:12px;">
+    <div class="mc"><div class="ml">可入场</div><div class="mv" style="color:${go.length?'var(--G)':'var(--tx2)'};">${go.length}</div></div>
+    <div class="mc"><div class="ml">观察中</div><div class="mv" style="color:var(--A);">${wait.length}</div></div>
+    <div class="mc"><div class="ml">已拒绝</div><div class="mv" style="color:var(--tx2);">${no.length}</div></div>
+    <div class="mc"><div class="ml">首批总金额</div><div class="mv" style="color:${go.length?'var(--G)':'var(--tx2)'};">¥${totalAmt.toLocaleString()}</div>
+      <div class="ms">占总资金 ${(totalAmt/cap*100).toFixed(1)}%${go.length?' · 共'+go.reduce((a,d)=>a+(d.first_batch_lots||0),0)+'手':''}</div></div>
+  </div>
+  <div class="lblock lbG" style="margin-bottom:12px;"><div class="lblbl">仓位计算三步法</div>
+    <div class="lbtx">①大盘环境上限（牛市单只10%，震荡6%，熊市2%）→ ②层数比例（通过5层×100%，4层×85%，3层×60%，2层×30%）→ ③止损修正（实际仓位 = 基础仓位 × 5% ÷ 止损距离%）。每笔最大亏损金额基本相同，确保风险均等。</div></div>
+  ${go.length?`<div style="font-size:13px;font-weight:700;color:var(--Gtx);margin-bottom:8px;">✅ 可入场</div>${go.map(dcCard).join('')}`:''}
+  ${wait.length?`<div style="font-size:13px;font-weight:700;color:var(--Atx);margin:12px 0 8px;">⏳ 观察中</div>${wait.map(dcCard).join('')}`:''}
+  ${no.length?`<div style="font-size:13px;font-weight:700;color:var(--Rtx);margin:12px 0 8px;">🚫 已拒绝</div>${no.map(dcCard).join('')}`:''}`;
+}
+
+// ── 逻辑链图谱（之前各品类的深层逻辑） ───────────────────────────────────────
+function pgLogic(){
+  const LOGIC={
+    dairy:{
+      title:'奶制品逻辑链',
+      desc:'收购价是表象，背后有三条独立驱动逻辑，判断错了方向完全不同',
+      chains:[
+        {num:'1',color:'lbR',obs:'生鲜乳收购价长期低位，大型牧场亏损，部分养殖户被迫杀牛退出',
+         why:'2020-2022年牧场扩张潮（政策鼓励规模化），奶牛存栏扩至630万+。存栏去化需12-18个月，是慢变量。乳企宁可倒奶也不提价，因为进口大包粉更便宜可替代。',
+         logic:'收购价低 → 牧场亏损 → 淘汰低效奶牛 → 存栏下降 → 供给收缩 → 收购价回升',
+         signal:'存栏量连续3个月同比下降 + 淘汰牛价格下跌（大量杀牛）',
+         label:'供给侧驱动（供给过剩型）'},
+        {num:'2',color:'lbA',obs:'液态奶零售额增速为负，婴配粉出货量持续下滑，奶酪/酸奶等细分品类分化',
+         why:'出生率下降是结构性长期趋势，婴配粉市场萎缩不可逆。液态奶增量天花板已显现，但高端奶/A2/功能性乳品仍有增量，是内部分化而非整体衰退。',
+         logic:'"奶价低不是人民生活水平高了"——低价格叠加需求疲软，是供需双弱，不是供给满足需求的健康状态。要看量价是否同步：量增价稳=真实需求；量平价跌=供给过剩。',
+         signal:'婴配粉出货量同比变化 + 液奶零售额量价拆分',
+         label:'需求侧驱动（需求萎缩型）'},
+        {num:'3',color:'lbB',obs:'进口大包粉到岸价持续低于国内生鲜乳折算成本，乳企倾向于用进口粉替代',
+         why:'新西兰/欧盟奶源供给宽松 + 人民币汇率相对稳定，进口成本低。国内奶牛养殖成本高（饲料/土地/人工），在全球范围内没有竞争力。这是结构性差距，不是周期性问题。',
+         logic:'进口替代加剧时，乳企进口粉使用比例↑ → 成本↓ → 毛利改善 → 对品牌乳企（伊利/蒙牛）是短期利好，对上游牧场是持续利空。',
+         signal:'海关进口大包粉量价变化 + 乳企季报成本率变化',
+         label:'进口替代驱动'}
+      ],
+      matrix:[
+        {cond:'收购价↓ + 存栏↑ + 进口粉↓',verdict:'供给过剩主导',color:'tR',target:'上游牧场持续承压'},
+        {cond:'收购价↓ + 零售额↓ + 出生率↓',verdict:'需求萎缩主导',color:'tR',target:'全行业景气下行'},
+        {cond:'收购价↓ + 乳企毛利↑ + 进口量↑',verdict:'进口替代主导',color:'tA',target:'乳企受益，牧场受损'},
+        {cond:'存栏↓ + 收购价企稳 + 零售额回升',verdict:'供给出清完成',color:'tG',target:'全行业拐点，牧场优先修复'},
+      ]
+    },
+    beef:{
+      title:'牛肉逻辑链',
+      color:'lbB',
+      chains:[
+        {num:'1',color:'lbB',obs:'国内牛肉批价长期跟随进口价，国内养殖业缺乏定价权',
+         why:'中国进口牛肉占消费量约30%，巴西+澳大利亚占进口的60%。两国汇率贬值 → 出口价竞争力增强 → 到岸价下降 → 国内价格承压。这是外生变量，不受国内政策调控。',
+         logic:'巴西雷亚尔/澳元兑人民币汇率 → 领先国内批价约4-6周。汇率贬值超过5% → 到岸价↓ → 国内价格跟跌。这是最重要的领先指标。',
+         signal:'USDBRL/USDAUD汇率周线方向变化',
+         label:'进口价格驱动（权重最高）'},
+        {num:'2',color:'lbA',obs:'牛肉是中等弹性消费品，经济压力大时消费者会降级替代（鸡肉/猪肉）',
+         why:'牛肉需求是居民可支配收入的晴雨表，不是食品行业本身的问题。餐饮端牛肉销量恢复，不等于居民主动消费增加——可能是餐饮店降价促销消化库存。',
+         logic:'量升价降=去库（假复苏）。量价双升=真实需求回暖（真复苏）。要同时看餐饮价格指数验证。',
+         signal:'餐饮牛肉销量 + 价格指数双向验证',
+         label:'国内消费弹性驱动'},
+      ]
+    },
+    seafood:{
+      title:'海鲜逻辑链',
+      chains:[
+        {num:'1',color:'lbG',obs:'水产品出口额同比+12%，港口吞吐量回升，冷冻品库容率下降至61%',
+         why:'东南亚/中东市场对中国水产品需求回升，部分原因是日本核污水事件后日本水产品被替代。全球水产品供给端（厄尔尼诺影响渔获量），叠加中国养殖成本有竞争力，出口增量具有持续性。',
+         logic:'库容率低 → 价格弹性大，需求略增即可推动价格上涨。这是价格上行期的先决条件，类似"干柴"，等待"火星"（旺季需求或出口订单放量）。',
+         signal:'港口水产品出口数据月报 + 冷冻品库容率周报',
+         label:'出口驱动（当前主逻辑）'},
+        {num:'2',color:'lbA',obs:'进口高端海鲜（帝王蟹/三文鱼/活鲍）量回升，但需验证来源',
+         why:'进口高端海鲜量↑，不一定是国内消费旺盛，也可能是贸易商囤货+转口贸易。需要交叉验证：餐饮高端消费数据 + 海关单价（单价↑=真实需求，单价↓=量增价跌=去库）。',
+         logic:'帝王蟹/三文鱼进口量+单价双升 = 消费升级确认。量升价跌 = 贸易商套利，不是真实消费。',
+         signal:'海关进口量+进口单价同时验证',
+         label:'国内消费驱动（需验证）'},
+      ]
+    },
+    baijiu:{
+      title:'中端白酒逻辑链（100-300元价格带）',
+      chains:[
+        {num:'1',color:'lbA',obs:'①去库阶段：动销↑批价↓/平 ②库存正常：批价稳定 ③补库阶段：经销商主动打款、批价上涨 ④过热阶段：批价大幅溢价、渠道囤货',
+         why:'动销率反映渠道库存在消化，不代表厂家发货量增加。厂家只有等渠道库存去化完成才会恢复压货。顺序：动销改善（领先）→ 批价企稳（同步）→ 厂家恢复压货 → 财报收入增长（滞后）。',
+         logic:'当前：批价企稳是关键进度信号，经销商打款节奏加快才是阶段②确认信号。财报层面的收入改善至少滞后1-2个季度。',
+         signal:'经销商季报打款节奏 + 100-300元批发价变化',
+         label:'渠道库存周期（核心框架）'},
+        {num:'2',color:'lbG',obs:'政务消费持续受限，商务宴请场景转移至大众消费',
+         why:'100-300元价格带受益于"消费平替"趋势——原来喝高端酒的人在降级，原来喝低端酒的人在升级，双向夹击带来中端扩容。这是中长期结构性逻辑，比周期逻辑更稳定。',
+         logic:'中端白酒动销好，不等于中端白酒股都好。要看是哪个品牌受益：区域龙头（古井/今世缘）比全国龙头（茅台/五粮液）更直接受益，因为它们本来就深耕这个价格带。',
+         signal:'区域龙头vs全国龙头动销率分化',
+         label:'消费场景结构变化'},
+      ]
+    },
+    electricity:{
+      title:'全国用电量逻辑链',
+      chains:[
+        {num:'1',color:'lbG',obs:'工业用电大幅高于季节均值（ALERT_UP）',
+         why:'制造业订单回升，开工率提高；或大型基建项目集中开工；或出口订单旺季提前启动。',
+         logic:'交叉验证：PMI生产子项、出口运价指数、铜消耗量三者是否同向。全部同向=真实景气，只有用电量高=统计口径差异。',
+         signal:'PMI生产子项 + 沪铜库存 + SCFI运价同向确认',
+         label:'工业用电异动高'},
+        {num:'2',color:'lbR',obs:'高耗能行业（钢铁/铝/化工）用电持续低于均值',
+         why:'主动减产（价格倒挂亏损）；或环保限产；或需求端萎缩。',
+         logic:'交叉验证：高炉开工率（Mysteel周报）+ 钢厂盈利率 + 螺纹钢库存变化。三项同时偏弱=行业性景气低谷，大概率持续。',
+         signal:'高炉开工率周报 + 钢厂盈利率变化',
+         label:'高耗能用电异动低'},
+        {num:'3',color:'lbP',obs:'电子/设备行业用电持续偏高（当前状态）',
+         why:'AI算力需求扩张（服务器/数据中心）；新能源车产能爬坡；电子出口订单旺盛。',
+         logic:'AI算力链的实业端验证指标。若电子用电高 + LME铜库存低 + L2期货信号BULLISH，三层同时确认，AI算力链信号最强。',
+         signal:'GPU进口量 + 新能源车产量 + 电子出口额',
+         label:'电子行业用电异动高（当前）'},
+      ]
+    }
+  };
+
+  const topics=['dairy','beef','seafood','baijiu','electricity'];
+  const labels={'dairy':'奶制品','beef':'牛肉','seafood':'海鲜','baijiu':'中端白酒','electricity':'用电量逻辑'};
+
+  return`
+  <div class="snav" id="logicsnav">
+    ${topics.map((t,i)=>`<div class="snt ${i===0?'on':''}" onclick="swLogic('${t}',this)">${labels[t]}</div>`).join('')}
+  </div>
+  ${topics.map((t,i)=>{
+    const L=LOGIC[t];
+    return`<div id="lsub-${t}" class="subpage ${i===0?'on':''}">
+      <div class="card"><div class="ct">${L.title}</div>
+        ${L.desc?`<div style="font-size:13px;color:var(--tx2);margin-bottom:12px;">${L.desc}</div>`:''}
+        ${L.chains.map(c=>`
+        <div style="margin-bottom:16px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+            <div style="width:22px;height:22px;border-radius:50%;background:var(--${c.color.slice(2)}bg);
+                 color:var(--${c.color.slice(2)}tx);font-size:11px;font-weight:700;
+                 display:flex;align-items:center;justify-content:center;flex-shrink:0;">${c.num}</div>
+            <div style="font-size:13px;font-weight:700;">${c.label}</div>
+          </div>
+          <div class="lblock ${c.color}"><div class="lblbl">观察到的现象</div><div class="lbtx">${c.obs}</div></div>
+          <div class="lblock lbN" style="background:var(--sf2);border-left-color:var(--bd2);"><div class="lblbl" style="color:var(--tx2);">深层原因</div><div class="lbtx" style="color:var(--tx2);">${c.why}</div></div>
+          <div class="lblock ${c.color}"><div class="lblbl">逻辑链 / 结论</div><div class="lbtx">${c.logic}</div></div>
+          <div class="lblock lbG"><div class="lblbl">关键监控信号</div><div class="lbtx">${c.signal}</div></div>
+        </div>`).join('')}
+      </div>
+      ${L.matrix?`<div class="card"><div class="ct">异动判断矩阵</div>
+        <table><tr><th>现象组合</th><th>判断</th><th>主要影响标的</th></tr>
+        ${L.matrix.map(m=>`<tr><td style="font-size:12px;">${m.cond}</td><td><span class="tag ${m.color}">${m.verdict}</span></td><td style="font-size:12px;color:var(--tx2);">${m.target}</td></tr>`).join('')}
+        </table></div>`:''}
+    </div>`;
+  }).join('')}`;
+}
+
+// ── 跨层信号验证 ──────────────────────────────────────────────────────────────
+function pgCross(){
+  const l1=D.layer1,l2=D.layer2;
+  const STRONG=[
+    {l1:'L1：铜库存低位',l2:'L2：LME升水（Backwardation）',sig:'强做多',cls:'csigS',desc:'实业需求旺盛（L1）+ 市场定价确认（L2），铜相关标的可提高仓位。'},
+    {l1:'L1：社融回升',l2:'L2：国债期货上涨',sig:'全市场做多',cls:'csigS',desc:'信用扩张（L1）+ 流动性宽松预期（L2），历史上这个组合后6个月上涨概率超70%。'},
+    {l1:'L1：海鲜出口↑',l2:'L2：美元走弱',sig:'细分做多',cls:'csigS',desc:'出口景气（L1）+ 汇率顺风（L2），水产出口企业双重利好，可精确到细分标的。'},
+    {l1:'L1：电子用电ALERT↑',l2:'L2：美债下行 + 美元弱',sig:'AI链做多',cls:'csigS',desc:'三层同时共振，当前框架内最强信号，AI算力链可提仓。'},
+    {l1:'L1：工业用电↓',l2:'L2：铜期货Contango（远月升水）',sig:'制造业清仓',cls:'csigS',desc:'制造业开工下降（L1）+ 市场判断供给宽松（L2），制造业相关标的清仓信号。'},
+  ];
+  const WARN=[
+    {l1:'L1：PMI新订单↑',l2:'L2：股指期货贴水扩大',sig:'减仓等待',cls:'csigW',desc:'实业数据好转但机构在加码对冲，可能机构掌握更多信息，降仓50%等待收敛。'},
+    {l1:'L1：螺纹钢库存↑',l2:'L2：铁矿石期货大涨',sig:'不追高',cls:'csigW',desc:'实业端供给过剩，但期货端有大资金拉抬。期货行情短期，实业数据会纠正，不追。'},
+    {l1:'L1：电子用电↑',l2:'L2：美债收益率↑',sig:'延迟入场',cls:'csigW',desc:'国内AI/电子景气，但美债上行压制全球科技估值，A股科技股上有压力，等美债企稳。'},
+    {l1:'L1：社零消费↑',l2:'L2：VIX突破20',sig:'Layer 0介入',cls:'csigS',desc:'国内消费复苏，但全球风险偏好骤降，外资会先撤出不管基本面，Layer 0暂停新仓。'},
+  ];
+  return`
+  <div class="lblock lbP" style="margin-bottom:14px;"><div class="lblbl">跨层验证原则</div>
+    <div class="lbtx">单层信号可以错，两层同向才是真信号。Layer 1 是"发生了什么"，Layer 2 是"资金认为会发生什么"。两层方向一致=加仓信号强度翻倍。两层背离=不是判断哪层对，而是降仓等待收敛，背离本身就是信息。</div></div>
+
+  <div class="card"><div class="ct">✅ 强信号组合（两层同向，加仓）</div>
+    ${STRONG.map(r=>`
+    <div class="crow">
+      <div class="clabels"><span class="tag tG">${r.l1}</span><span class="tag tG">${r.l2}</span></div>
+      <div class="carrow">→</div>
+      <div class="ctxt">${r.desc}</div>
+      <div class="csig ${r.cls}">${r.sig}</div>
+    </div>`).join('')}
+  </div>
+
+  <div class="card"><div class="ct">⚠ 背离警告（两层矛盾，降仓等待）</div>
+    ${WARN.map(r=>`
+    <div class="crow">
+      <div class="clabels"><span class="tag tG">${r.l1}</span><span class="tag tR">${r.l2}</span></div>
+      <div class="carrow">→</div>
+      <div class="ctxt">${r.desc}</div>
+      <div class="csig ${r.cls}">${r.sig}</div>
+    </div>`).join('')}
+  </div>
+
+  <div class="card"><div class="ct">当前系统信号状态</div>
+    <div class="g2">
+      <div>
+        <div style="font-size:12px;font-weight:700;color:var(--tx2);margin-bottom:8px;">Layer 1 实业</div>
+        ${Object.values(D.layer1.groups).flat().filter(i=>i.signal!=='NEUTRAL').map(i=>`
+        <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bd);">
+          <div class="dot ${i.signal.includes('UP')?'dG':'dR'}"></div>
+          <div style="flex:1;font-size:12px;">${i.name}</div>
+          ${sigTag(i.signal)}
+        </div>`).join('')}
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:700;color:var(--tx2);margin-bottom:8px;">Layer 2 期货</div>
+        ${[...D.layer2.intl,...D.layer2.futures,...(D.layer2.bank||[])].filter(s=>s.direction!=='NEUTRAL').map(s=>`
+        <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bd);">
+          <div class="dot ${s.direction==='BULLISH'?'dG':'dR'}"></div>
+          <div style="flex:1;font-size:12px;">${s.name}</div>
+          ${dirTag(s.direction)}
+        </div>`).join('')}
+      </div>
+    </div>
+    <div style="margin-top:12px;padding:10px 12px;border-radius:var(--r);background:var(--sf2);">
+      <div style="font-size:12px;color:${D.layer2.divergence.includes('背离')?'var(--Atx)':'var(--Gtx)'};">${D.layer2.divergence}</div>
+    </div>
+  </div>`;
+}
+
+// ── 陷阱识别 ──────────────────────────────────────────────────────────────────
+function pgTrap(){
+  const TRAPS=[
+    {n:'名字改了赛道没变',b:'公司名称加入"数字""智能""新能源"等关键词，主营业务丝毫未变。验证方法：看收入结构3年变化，名字改了但分部收入结构一样=纯炒概念。'},
+    {n:'战略合作公告满天飞',b:'与知名企业签署"战略合作协议"，但协议无金额、无排他、无约束力。真正的合作是采购订单，有金额有交期。"战略合作"四个字本身不值钱。'},
+    {n:'供应链关联无限延伸',b:'声称是某热门产业链"供应商"，但供货金额极小或只有一次性采购。比如"向某AI大厂供货"——金额可能只有几十万，占收入不到0.1%。'},
+    {n:'补贴撑起的利润',b:'扣非净利润（扣除政府补贴后）长期为负，靠补贴维持账面盈利。真头部利润来自市场竞争。看利润表：政府补贴/净利润比值超过50%就要警惕。'},
+    {n:'大股东高位减持',b:'公司对外大力宣传产业链机会，同时大股东悄悄提交减持计划。两者同时出现几乎是确定性的信号——内部人比你更清楚公司实际情况。减持公告比任何分析都可靠。'},
+    {n:'研报密集覆盖',b:'突然被十几家券商同时给出"买入"评级，目标价大幅上调。券商研报是利益相关的，IPO承销、定增配合、机构抱团都会影响评级。研报密集出现往往是机构出货的配合动作。'},
+  ];
+  const STEPS=[
+    {t:'第一步：看扣非净利润（10秒过滤60%概念股）',d:'打开利润表，找"扣除非经常性损益后的净利润"。连续3年为正且增长=基本面真实。扣非为负但净利润为正=靠补贴或资产出售撑着，不是真盈利。'},
+    {t:'第二步：查前五大客户',d:'年报必须披露前五大客户名称和销售金额。核心问题：客户是不是行业龙头？占比是否合理（单客户超40%集中度风险，低于5%说明是边缘供应商）？客户是不是关联方？'},
+    {t:'第三步：看经营现金流与利润比值',d:'经营活动现金流/净利润，正常范围0.8-1.5。长期低于0.5说明利润收不回来（应收账款高企或虚增收入）。长期高于2说明业务现金创造能力极强，是优质标的特征。'},
+    {t:'第四步：查大股东持股变动',d:'证监会要求大股东减持前3天预披露。在公司大力宣传好故事的同时，去交易所官网查"大股东减持计划"。两者同时出现=最强的卖出信号，超过任何基本面分析。'},
+    {t:'第五步：验证研发投入真实性',d:'研发费用率稳定在8-20%且研发人员数量连续增长=真正在投入。研发费用突然暴增（配合融资/股价）但人员未增=财务操纵迹象。看研发人员绝对数量，不只看金额。'},
+  ];
+  return`
+  <div class="lblock lbR" style="margin-bottom:14px;"><div class="lblbl">A股特殊性警告</div>
+    <div class="lbtx">A股市场游资和概念炒作极其活跃。真趋势+假标的是最常见的亏损来源——趋势判断对了，买到的是蹭概念的垃圾公司，钱照样亏。Layer 4 的作用就是在六层框架的最后关口过滤掉这类陷阱，确保进入 Layer 5 的标的都是真实的产业链参与者。</div></div>
+
+  <div class="card"><div class="ct">六种最常见概念陷阱</div>
+    <div class="g2">
+      ${TRAPS.map((t,i)=>`
+      <div class="trapcard">
+        <div class="trapn">
+          <div style="width:20px;height:20px;border-radius:50%;background:var(--Rbg);color:var(--Rtx);
+               font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${i+1}</div>
+          ${t.n}
+        </div>
+        <div class="trapb">${t.b}</div>
+      </div>`).join('')}
+    </div>
+  </div>
+
+  <div class="card"><div class="ct">识别真假头部：五步快速验证法</div>
+    ${STEPS.map((s,i)=>`
+    <div class="step">
+      <div class="stepnum" style="background:var(--Gbg);border-color:var(--G);color:var(--Gtx);">${i+1}</div>
+      <div class="steptx">
+        <div class="st">${s.t}</div>
+        <div class="ss">${s.d}</div>
+      </div>
+    </div>`).join('')}
+  </div>
+
+  <div class="card"><div class="ct">真头部 vs 概念股：财务特征对比</div>
+    <table>
+      <tr><th>检验项</th><th>真头部特征</th><th>概念股特征</th><th>查验方式</th></tr>
+      ${[
+        ['研发投入','研发费用率稳定8-20%，研发人员连续增长','研发费用突然暴增（配合融资），或长期接近零','年报研发明细·人员数量变化'],
+        ['关联交易','关联交易占收入比例低，有合理商业逻辑','大量关联交易、大客户是关联方、应收账款高企','年报关联交易披露·前五大客户'],
+        ['现金流','经营现金流与净利润方向一致，比例0.8-1.5','利润高但经营现金流为负，靠融资维持运营','现金流量表：经营活动/净利润'],
+        ['股东行为','大股东持股稳定，高管增持，有回购记录','高位减持、质押比例高、频繁更换高管','股权质押公告·高管持股变动'],
+        ['跨界公告','新业务与主业有明确协同，分步骤推进','突然宣布进入热门赛道，无技术积累无客户','公告历史：跨界宣布时间是否在股价低点'],
+      ].map(([k,g,r,v])=>`<tr>
+        <td style="font-weight:600;">${k}</td>
+        <td style="color:var(--Gtx);font-size:12px;">${g}</td>
+        <td style="color:var(--Rtx);font-size:12px;">${r}</td>
+        <td style="color:var(--tx2);font-size:11px;">${v}</td>
+      </tr>`).join('')}
+    </table>
+  </div>`;
+}
+
+// ── 路由 ─────────────────────────────────────────────────────────────────────
+const PAGES={ov:pgOv,trend:pgTrend,l0:pgL0,l1:pgL1,l2:pgL2,l3:pgL3,l4:pgL4,l5:pgL5,logic:pgLogic};
+let curPage='ov';
+
+function showPage(name,el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('.nt').forEach(t=>t.classList.remove('on'));
+  document.getElementById('pg-'+name).classList.add('on');
+  el.classList.add('on');
+  curPage=name;
+  if(D) renderPage(name);
+}
+function renderPage(name){
+  const el=document.getElementById('pg-'+name);
+  if(el&&D&&PAGES[name]) el.innerHTML=PAGES[name]();
+}
+function renderAll(){Object.keys(PAGES).forEach(renderPage);}
+
+// sub-nav
+function swLogic(name,el){
+  document.querySelectorAll('[id^="lsub-"]').forEach(e=>e.classList.remove('on'));
+  document.querySelectorAll('#logicsnav .snt').forEach(t=>t.classList.remove('on'));
+  const el2=document.getElementById('lsub-'+name);
+  if(el2) el2.classList.add('on');
+  el.classList.add('on');
+}
+
+// ── 内置示例数据（克隆后即可预览效果）─────────────────────────────────────────
+var DEMO_DATA={
+  meta:{generated_at:"示例数据（非实时）",capital:1000000,market_env:"SIDEWAYS"},
+  layer0:{level:"GREEN",score:72,max_position:0.45,note:"大盘环境正常，无系统性风险",triggered:[],
+    env:{index_5d_chg:1.2,max_1d_drop:-0.8,vix:14.5,usdcny:7.24}},
+  layer1:{score:63,ts:"示例",alerts:[
+    {name:"全社会用电量",value:8921,value:"8921 亿千瓦时",unit:"亿千瓦时",yoy:6.8,zscore:2.1,signal:"ALERT_UP",note:"电子行业用电同比+12%，AI算力需求拉动",source:"国家能源局"},
+    {name:"LME铜库存",value:128500,unit:"吨",yoy:-18.5,zscore:-2.3,signal:"ALERT_DOWN",note:"库存降至近5年低位，供给偏紧",source:"LME"}],
+    groups:{
+      food:[{name:"农产品批发价200指数",value:121.5,unit:"点",yoy:-2.1,zscore:-0.8,signal:"NEUTRAL",note:"季节性回调",source:"农业农村部"},{name:"生猪现货价",value:14.8,unit:"元/公斤",yoy:5.2,zscore:0.6,signal:"UP",note:"产能去化接近尾声",source:"搜猪网"}],
+      bulk:[{name:"沪铜主力",value:78500,unit:"元/吨",yoy:12.3,zscore:1.8,signal:"UP",note:"AI算力+新能源需求拉动",source:"上期所"},{name:"螺纹钢主力",value:3650,unit:"元/吨",yoy:-8.2,zscore:-1.2,signal:"DOWN",note:"地产需求疲软",source:"上期所"}],
+      macro:[{name:"M2同比",value:7.3,unit:"%",yoy:-1.2,zscore:-0.5,signal:"NEUTRAL",note:"信贷平稳",source:"央行"},{name:"PMI",value:50.1,unit:"点",yoy:0.3,zscore:0.2,signal:"UP",note:"勉强站上荣枯线",source:"统计局"}],
+      infra:[{name:"建筑业PMI",value:52.8,unit:"点",yoy:1.5,zscore:0.7,signal:"UP",note:"基建托底",source:"统计局"}],
+      electricity:[{name:"全社会用电量",value:8921,unit:"亿千瓦时",yoy:6.8,zscore:2.1,signal:"ALERT_UP",note:"电子行业用电同比+12%，AI算力需求拉动",source:"国家能源局"}],
+      logistics:[{name:"BDI指数",value:1856,unit:"点",yoy:15.2,zscore:1.6,signal:"UP",note:"全球贸易回暖",source:"波罗的海交易所"}]
+    },all:[]},
+  layer2:{score:61,ts:"示例",divergence:"L1/L2 方向基本一致，实业与金融共振偏多",intl:[
+    {name:"美元指数",value:103.2,unit:"点",change:-0.8,direction:"BEARISH",impact:"美元走弱→人民币升值→外资回流A股",source:"东方财富"},
+    {name:"费城半导体指数",value:5230,unit:"点",change:2.3,direction:"BULLISH",impact:"半导体景气上行→利好国产替代链",source:"Yahoo Finance"}],
+    futures:[
+    {name:"IF当月基差",value:-5.2,unit:"点",change:-3.1,direction:"BEARISH",impact:"小幅贴水，机构中性偏谨慎",source:"上期所"},
+    {name:"IC当月基差",value:12.8,unit:"点",change:5.2,direction:"BULLISH",impact:"中证500升水扩大，中小盘看好",source:"上期所"}],
+    bank:[]},
+  layer3:{active:[
+    {name:"AI算力链",desc:"AI服务器→GPU→光模块→PCB→散热",strength:82,node:"光模块",window:"操作窗口：光模块放量确认期（领先下游3-6个月）",reasoning:"L1电子用电量ALERT_UP(+12%)，L2费城半导体指数BULLISH(+2.3%)，LME铜库存降至5年低位。三层信号共振确认AI算力链景气上行，光模块作为当前传导节点，800G产品进入放量期。",
+      nodes:[{stage:"国际信号源",name:"费城半导体指数",detail:"SOX指数5230点，月涨幅5.2%",lead:"领先3-6个月",stocks:["NVDA","AMD"],active:true},
+              {stage:"上游",name:"AI芯片/GPU",detail:"英伟达H100/B200供不应求",lead:"领先2-4个月",stocks:["英伟达","AMD"],active:true},
+              {stage:"中游",name:"光模块",detail:"800G光模块进入规模出货",lead:"当前节点",stocks:["中际旭创","新易盛","光迅科技"],active:true},
+              {stage:"下游",name:"AI服务器",detail:"液冷服务器渗透率提升",lead:"滞后1-3个月",stocks:["浪潮信息","紫光股份"],active:false},
+              {stage:"风险",name:"估值泡沫风险",detail:"部分个股PE超80x",lead:"同步监控",stocks:[],active:false}]},
+    {name:"新能源车链",desc:"锂矿→电池材料→动力电池→整车→充电桩",strength:55,node:"动力电池",window:"观察窗口：等待政策刺激确认",reasoning:"L1新能源车用电量上升但同比增速放缓，L2铜价BULLISH支撑上游。传导至动力电池环节但未出现放量信号，继续观察。",
+      nodes:[{stage:"上游",name:"锂矿/碳酸锂",detail:"碳酸锂价格企稳于10万/吨",lead:"领先3-6个月",stocks:["天齐锂业","赣锋锂业"],active:false},
+              {stage:"中游",name:"动力电池",detail:"宁德时代全球份额36%",lead:"当前节点",stocks:["宁德时代","比亚迪"],active:true},
+              {stage:"下游",name:"新能源整车",detail:"渗透率突破45%",lead:"滞后2-3个月",stocks:["比亚迪","理想汽车"],active:false},
+              {stage:"风险",name:"价格战风险",detail:"整车厂持续降价",lead:"同步监控",stocks:[],active:false}]}],
+    inactive:[
+    {name:"航空航天材料链",desc:"钛合金→碳纤维→航空发动机→整机制造",strength:28,node:"碳纤维",window:"等待军品订单确认",reasoning:"暂无明显触发信号",nodes:[]}],
+    top_nodes:[{chain:"AI算力链",node:"光模块",strength:82,window:"光模块放量确认期（领先下游3-6个月）",l2_aligned:true,reasoning:"三层信号共振确认"},
+              {chain:"新能源车链",node:"动力电池",strength:55,window:"等待政策刺激确认",l2_aligned:true,reasoning:"铜价支撑但未放量"}],
+    market_narrative:"当前市场主线：AI算力链景气上行。核心驱动：全球AI资本开支扩张（微软/谷歌/亚马逊合计超2000亿美元），费城半导体指数创历史新高传导至国产替代链。电子行业用电量同比+12%提供实业端验证。铜库存降至5年低位强化上游供给逻辑。需关注风险：大盘单日跌幅超3%触发L0否决，估值泡沫（部分光模块PE>80x）。",
+    cross_signals:["AI算力链L1+L2+国际信号三层共振→最强做多信号","新能源车链L1弱L2强→降仓等待收敛"],
+    source:"LLM"},
+  layer4:[
+    {code:"300308",name:"中际旭创",chain:"AI算力链",node:"光模块",data_source:"static",
+     scores:{revenue:22,client:21,margin:19,capex:20,total:82},
+     green_flags:["800G光模块全球份额第一","英伟达核心供应商","毛利率持续扩张"],
+     red_flags:["客户集中度高（前两大客户占比70%）"],
+     verdict:"REAL",note:"800G光模块龙头",
+     financials:{pe:35,pb:8.5,mktcap:"1200亿",gross_margin:33.2,net_margin:18.5,roe:22.1,rev_yoy:68.5,profit_yoy:85.2,debt_ratio:15.2,cash_flow_ratio:0.92},
+     tech_summary:"放量突破前高（85.2元），站上20日均线，MACD金叉，成交量放大至均量1.8倍",
+     tech_overall:"突破蓄势",deep_financial:"营收同比+68.5%验证800G放量，ROE 22.1%显示优秀盈利能力，现金流/利润0.92接近1:1，利润质量高。负债率15.2%极低。唯一隐忧：客户集中度偏高。",
+     kline:[]},
+    {code:"002371",name:"北方华创",chain:"AI算力链",node:"AI芯片设备",data_source:"static",
+     scores:{revenue:21,client:22,margin:17,capex:19,total:79},
+     green_flags:["半导体设备国产替代龙头","刻蚀/薄膜沉积市占率持续提升"],
+     red_flags:["应收账款偏高","研发投入大侵蚀短期利润"],
+     verdict:"REAL",note:"半导体设备龙头",
+     financials:{pe:68,pb:12.3,mktcap:"2800亿",gross_margin:42.1,net_margin:18.8,roe:16.5,rev_yoy:35.2,profit_yoy:42.1,debt_ratio:28.5,cash_flow_ratio:0.78},
+     tech_summary:"缩量回踩60日均线企稳，量能萎缩至地量水平，等待方向选择",
+     tech_overall:"缩量蓄势",deep_financial:"半导体设备国产替代核心标的。毛利率42.1%体现技术壁垒。PE 68x偏高但处于国产替代早期阶段。应收账款增长需关注回款质量。",
+     kline:[]},
+    {code:"300750",name:"宁德时代",chain:"新能源车链",node:"动力电池",data_source:"static",
+     scores:{revenue:20,client:23,margin:20,capex:16,total:79},
+     green_flags:["全球动力电池份额36%","技术壁垒深厚","海外工厂投产"],
+     red_flags:["碳酸锂价格波动影响毛利","储能竞争加剧"],
+     verdict:"REAL",note:"动力电池全球龙头",
+     financials:{pe:22,pb:5.8,mktcap:"9800亿",gross_margin:28.2,net_margin:11.5,roe:22.8,rev_yoy:8.5,profit_yoy:12.3,debt_ratio:22.1,cash_flow_ratio:1.15},
+     tech_summary:"横盘整理，价格在200-220元区间窄幅震荡，蓄势等待方向",
+     tech_overall:"横盘蓄势",deep_financial:"PE 22x在新能源板块中偏低，估值优势明显。现金流/利润1.15>1说明利润质量优秀。但碳酸锂价格波动和储能降价压力是中期风险。",
+     kline:[]}
+  ],
+  layer5:[
+    {code:"300308",name:"中际旭创",chain:"AI算力链",layers:{l0:true,l1:true,l2:true,l3:true,l4:82},
+     timing:"BREAKOUT",stop_loss_pct:6.2,position_pct:8.5,first_batch_pct:3.4,
+     current_price:85.2,first_batch_lots:34,first_batch_cost:28968,stop_loss_price:79.93,max_loss_amount:1796,
+     first_batch_amt:34000,verdict:"GO",reason:"AI算力链三层共振+光模块放量+技术面突破确认",
+     action:"首批建仓34手（约3.4万），止损79.93元（-6.2%），待回踩确认后加仓至8.5%",
+     tech_summary:"放量突破前高，站上20日均线",deep_financial:"利润质量高",pe:35,cash_flow_ratio:0.92,debt_ratio:15.2,kline:[]},
+    {code:"002371",name:"北方华创",chain:"AI算力链",layers:{l0:true,l1:true,l2:true,l3:true,l4:79},
+     timing:"ACCUMULATION",stop_loss_pct:7.5,position_pct:6.0,first_batch_pct:2.4,
+     current_price:320.5,first_batch_lots:7,first_batch_cost:22435,stop_loss_price:296.46,max_loss_amount:1679,
+     first_batch_amt:24000,verdict:"WAIT",reason:"缩量蓄势中，等待放量突破60日均线确认",
+     action:"等待放量突破60日均线后入场，目标仓位6.0%，首批7手",
+     tech_summary:"缩量回踩60日均线企稳",deep_financial:"PE偏高但国产替代早期",pe:68,cash_flow_ratio:0.78,debt_ratio:28.5,kline:[]},
+    {code:"300750",name:"宁德时代",chain:"新能源车链",layers:{l0:true,l1:true,l2:false,l3:true,l4:79},
+     timing:"NONE",stop_loss_pct:8.0,position_pct:5.0,first_batch_pct:2.0,
+     current_price:208.5,first_batch_lots:96,first_batch_cost:20016,stop_loss_price:191.82,max_loss_amount:1601,
+     first_batch_amt:20000,verdict:"WAIT",reason:"L2金融信号偏中性+技术面横盘，等待方向确认",
+     action:"观察200元支撑位有效性，突破220元放量后考虑入场",
+     tech_summary:"横盘整理200-220元区间",deep_financial:"估值优势明显",pe:22,cash_flow_ratio:1.15,debt_ratio:22.1,kline:[]}
+  ],
+  intl_signals:{sox_index:5230,raw_news:128,extracted:15,timestamp:"示例",signals:[
+    {category:"半导体",name:"费城半导体指数创历史新高",value:"5230",direction:"UP",detail:"AI资本开支超预期",source:"Yahoo Finance",relevance_chains:["AI算力链"]}]},
+  trend:{verdict:"WAIT",trend:"SIDEWAYS",confidence:62,l0_verdict:"PASS",
+    reasoning:"L0风险绿灯（72分），L1实业评分63偏正面（电子用电ALERT_UP、铜库存低位），L2金融评分61中性偏多（美元走弱、半导体指数上行）。综合判断：市场处于震荡偏多格局，AI算力链有明确主线逻辑，但大盘方向未完全确认，建议等待L1+L2方向更明确后加仓。当前保持50%观察仓位。",
+    key_signals:["电子行业用电量同比+12%（ALERT_UP）","LME铜库存降至5年低位","费城半导体指数创历史新高","美元指数走弱至103.2"],
+    risks:["大盘单日跌幅超3%触发L0否决","光模块PE超80x估值偏高","中美科技摩擦升级"],
+    opportunities:["AI算力链三层共振是最强做多信号","铜库存低位支撑有色金属链","美元走弱利好外资回流"],
+    action:"维持观察仓位，等待方向确认后加仓AI算力链",score:55,source:"LLM",timestamp:"示例"},
+  summary:{l0_level:"GREEN",l1_score:63,l2_score:61,trend_verdict:"WAIT",trend_direction:"SIDEWAYS",
+    trend_confidence:62,trend_source:"LLM",active_chains:2,go_count:1,wait_count:2,no_count:0,market_env:"SIDEWAYS"}
+};
+
+// ── 数据加载（四级回退：HTTP fetch → 内嵌数据 → 内置示例 → 手动选择文件） ─────────
+var _isDemo=false;
+async function loadData(){
+  // 优先级1：HTTP fetch（http.server 模式）
+  try{
+    const r=await fetch('dashboard.json?t='+Date.now());
+    if(r.ok){ D=await r.json(); applyData(); return; }
+  }catch(e){}
+
+  // 优先级2：读取内嵌数据（dashboard_standalone.html 模式）
+  try{
+    const emb=document.getElementById('embedded-data');
+    if(emb){ D=JSON.parse(emb.textContent); applyData(); return; }
+  }catch(e){}
+
+  // 优先级3：加载内置示例数据
+  _isDemo=true;
+  D=JSON.parse(JSON.stringify(DEMO_DATA));
+  applyData();
+  // 在顶部显示示例提示条
+  var bar=document.createElement('div');
+  bar.style.cssText='background:var(--Abg);color:var(--Atx);padding:8px 20px;font-size:12px;text-align:center;border-bottom:1px solid var(--A);';
+  bar.innerHTML='<b>当前显示示例数据</b> — 运行 <code style="background:rgba(0,0,0,.08);padding:2px 6px;border-radius:3px;">python export_json.py</code> 生成实时数据后刷新页面'+
+    ' <span style="margin-left:12px;opacity:.7;">（<a href="https://github.com" style="color:var(--Atx);text-decoration:underline;">查看配置教程</a> | <a href="#" onclick="this.parentElement.style.display=\'none\';return false;" style="color:var(--Atx);">关闭</a>）</span>';
+  document.body.insertBefore(bar,document.body.firstChild);
+}
+function loadFromFile(input){
+  const f=input.files[0]; if(!f) return;
+  const reader=new FileReader();
+  reader.onload=e=>{try{D=JSON.parse(e.target.result);applyData();}catch(err){alert('JSON 解析失败：'+err.message);}};
+  reader.readAsText(f);
+}
+function applyData(){
+  document.getElementById('tsb').textContent='更新：'+D.meta.generated_at;
+  renderAll();
+  document.getElementById('loading').style.display='none';
+  renderKlineCharts();
+}
+
+// ── K线蜡烛图渲染（纯Canvas，零外部依赖）─────────────────────────────────────
+function _renderSingleKline(code,kline,elId){
+  if(!kline||kline.length<5||!elId) return;
+  var el=document.getElementById(elId);
+  if(!el) return;
+  var W=el.clientWidth||600, H=el.clientHeight||300;
+  var dk=window.matchMedia('(prefers-color-scheme:dark)').matches;
+  var bgC=dk?'#1e1e1e':'#ffffff', txC=dk?'#888':'#999', gridC=dk?'#2a2a2a':'#f0f0f0';
+  var upC='#e24b4a', dnC='#1d9e75';
+
+  // 用echarts（如果可用），否则用canvas
+  if(typeof echarts!=='undefined'){
+    try{
+      var chart=echarts.init(el,null,{renderer:'canvas'});
+      var dates=kline.map(function(k){return k.date;});
+      var ohlc=kline.map(function(k){return[k.open,k.close,k.low,k.high];});
+      var vols=kline.map(function(k){return k.volume;});
+      function ma(data,n){var r=[];for(var i=0;i<data.length;i++){if(i<n-1){r.push(null);continue;}var s=0;for(var j=0;j<n;j++)s+=data[i-j];r.push(+(s/n).toFixed(2));}return r;}
+      var closes=kline.map(function(k){return k.close;});
+      chart.setOption({backgroundColor:bgC,animation:false,
+        tooltip:{trigger:'axis',axisPointer:{type:'cross'},
+          formatter:function(p){if(!p||!p.length)return'';var i=p[0].dataIndex;var k=kline[i];if(!k)return'';return'<b>'+k.date+'</b><br/>开:'+k.open+' 收:<b>'+k.close+'</b><br/>高:'+k.high+' 低:'+k.low;}},
+        grid:[{left:60,right:20,top:10,height:'55%'},{left:60,right:20,top:'72%',height:'16%'}],
+        xAxis:[{type:'category',data:dates,gridIndex:0,axisLabel:{show:false},boundaryGap:true},{type:'category',data:dates,gridIndex:1,axisLabel:{color:txC,fontSize:9},boundaryGap:true}],
+        yAxis:[{type:'value',gridIndex:0,position:'left',axisLabel:{color:txC,fontSize:9,formatter:function(v){return v.toFixed(0);}},splitLine:{lineStyle:{color:gridC,type:'dashed'}},scale:true},{type:'value',gridIndex:1,position:'left',axisLabel:{show:false},splitLine:{show:false}}],
+        dataZoom:[{type:'inside',xAxisIndex:[0,1],start:30,end:100}],
+        series:[
+          {name:'K',type:'candlestick',xAxisIndex:0,yAxisIndex:0,data:ohlc,itemStyle:{color:upC,color0:dnC,borderColor:upC,borderColor0:dnC}},
+          {name:'MA5',type:'line',xAxisIndex:0,yAxisIndex:0,data:ma(closes,5),lineStyle:{width:1},symbol:'none',itemStyle:{color:'#f5a623'}},
+          {name:'MA10',type:'line',xAxisIndex:0,yAxisIndex:0,data:ma(closes,10),lineStyle:{width:1},symbol:'none',itemStyle:{color:'#378add'}},
+          {name:'MA20',type:'line',xAxisIndex:0,yAxisIndex:0,data:ma(closes,20),lineStyle:{width:1},symbol:'none',itemStyle:{color:'#7f77dd'}},
+          {name:'V',type:'bar',xAxisIndex:1,yAxisIndex:1,data:vols,itemStyle:{color:function(p){return p.dataIndex>=1&&kline[p.dataIndex].close>=kline[p.dataIndex-1].close?'rgba(226,75,74,0.5)':'rgba(29,158,117,0.5)';}}}
+        ]});
+      window.addEventListener('resize',function(){chart.resize();});
+      return;
+    }catch(e){}
+  }
+
+  // ── Canvas fallback（ECharts不可用时） ──
+  var cvs=document.createElement('canvas');
+  cvs.width=W*2; cvs.height=H*2;
+  cvs.style.cssText='width:100%;height:100%;';
+  el.innerHTML=''; el.appendChild(cvs);
+  var ctx=cvs.getContext('2d'); ctx.scale(2,2);
+  ctx.fillStyle=bgC; ctx.fillRect(0,0,W,H);
+
+  var pad={l:60,r:15,t:10,b:25}, kH=H*0.6, vH=H*0.2, vTop=kH+10;
+  var n=kline.length, kW=(W-pad.l-pad.r)/n;
+  var prices=[]; for(var i=0;i<n;i++){prices.push(kline[i].high,kline[i].low);}
+  var pMin=Math.min.apply(null,prices), pMax=Math.max.apply(null,prices);
+  var pRange=pMax-pMin||1; pMin-=pRange*0.05; pMax+=pRange*0.05; pRange=pMax-pMin;
+  var maxVol=0; for(var i=0;i<n;i++){if(kline[i].volume>maxVol) maxVol=kline[i].volume;}
+  maxVol=maxVol||1;
+
+  function pY(v){return pad.t+(pMax-v)/pRange*kH;}
+  function vY(v){return vTop+vH*(1-v/maxVol);}
+
+  // 网格线
+  ctx.strokeStyle=gridC; ctx.lineWidth=0.5;
+  for(var i=0;i<=4;i++){
+    var y=pad.t+kH*i/4;
+    ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(W-pad.r,y); ctx.stroke();
+    ctx.fillStyle=txC; ctx.font='9px sans-serif'; ctx.textAlign='right';
+    ctx.fillText((pMax-pRange*i/4).toFixed(1),pad.l-5,y+3);
+  }
+
+  // K线蜡烛
+  for(var i=0;i<n;i++){
+    var k=kline[i], x=pad.l+i*kW+kW/2, up=k.close>=k.open;
+    ctx.strokeStyle=up?upC:dnC; ctx.fillStyle=up?upC:dnC;
+    var oY=pY(k.open),cY=pY(k.close),hY=pY(k.high),lY=pY(k.low);
+    // 影线
+    ctx.beginPath(); ctx.moveTo(x,hY); ctx.lineTo(x,lY); ctx.lineWidth=1; ctx.stroke();
+    // 实体
+    var bodyH=Math.max(Math.abs(oY-cY),1);
+    ctx.fillRect(x-kW*0.35, Math.min(oY,cY), kW*0.7, bodyH);
+    // 成交量
+    var vc=dk?(up?'rgba(226,75,74,0.5)':'rgba(29,158,117,0.5)'):(up?'rgba(226,75,74,0.6)':'rgba(29,158,117,0.6)');
+    ctx.fillStyle=vc;
+    ctx.fillRect(x-kW*0.35, vY(k.volume), kW*0.7, vH-vY(k.volume));
+  }
+
+  // MA线
+  function ma(data,period){
+    var r=[];
+    for(var i=0;i<data.length;i++){
+      if(i<period-1){r.push(null);continue;}
+      var s=0;for(var j=0;j<period;j++) s+=data[i-j];
+      r.push(s/period);
+    }return r;
+  }
+  var closes=kline.map(function(k){return k.close;});
+  var mas=[{d:ma(closes,5),c:'#f5a623'},{d:ma(closes,10),c:'#378add'},{d:ma(closes,20),c:'#7f77dd'}];
+  for(var m=0;m<mas.length;m++){
+    ctx.strokeStyle=mas[m].c; ctx.lineWidth=1; ctx.beginPath();
+    for(var i=0;i<n;i++){
+      if(mas[m].d[i]===null) continue;
+      var x=pad.l+i*kW+kW/2, y=pY(mas[m].d[i]);
+      if(i===0||mas[m].d[i-1]===null) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+  }
+
+  // 日期标签
+  ctx.fillStyle=txC; ctx.font='9px sans-serif'; ctx.textAlign='center';
+  var step=Math.max(Math.floor(n/6),1);
+  for(var i=0;i<n;i+=step){
+    var lbl=kline[i].date||'';
+    if(lbl.length>5) lbl=lbl.slice(5);
+    ctx.fillText(lbl, pad.l+i*kW+kW/2, H-5);
+  }
+
+  // 标题
+  ctx.fillStyle=dk?'#ccc':'#333'; ctx.font='bold 11px sans-serif'; ctx.textAlign='left';
+  ctx.fillText(code+' K线', pad.l, pad.t-1<8?8:pad.t);
+}
+
+function renderKlineCharts(){
+  (D.layer4||[]).forEach(function(p){
+    _renderSingleKline(p.code,p.kline,'kline-l4-'+p.code);
+  });
+  (D.layer5||[]).forEach(function(d){
+    _renderSingleKline(d.code,d.kline,'kline-'+d.code);
+  });
+}
+
+loadData();
+</script>
+</body>
+</html>
