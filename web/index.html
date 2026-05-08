@@ -241,6 +241,8 @@ tr:last-child td{border-bottom:none;}
   <div class="nt" onclick="showPage('l4',this)">L4 头部企业</div>
   <div class="nt" onclick="showPage('l5',this)">L5 个股决策</div>
   <div class="nt" onclick="showPage('logic',this)">逻辑链图谱</div>
+  <div class="nt" onclick="showPage('backtest',this)">回测</div>
+  <div class="nt" onclick="showPage('memory',this)">记忆</div>
 </div>
 
 <div class="main">
@@ -255,6 +257,8 @@ tr:last-child td{border-bottom:none;}
   <div id="pg-logic" class="page"></div>
   <div id="pg-cross" class="page"></div>
   <div id="pg-trap"  class="page"></div>
+  <div id="pg-backtest" class="page"></div>
+  <div id="pg-memory" class="page"></div>
 </div>
 
 <script>
@@ -1024,8 +1028,175 @@ function pgTrap(){
   </div>`;
 }
 
+// ── 回测页面 ──────────────────────────────────────────────────────────────────
+var BT,bT; // backtest data, bT is trade list
+function pgBacktest(){
+  if(!BT) return '<div class=card><div class=ct>回测报告</div><p style="color:var(--tx2)">未找到回测数据。<br>请先运行：<code>python backtest.py --stock 300394 --start 2024-01-01</code><br>生成后刷新本页即可查看。</p></div>';
+  bT=BT.trades||[];
+  var m=BT.metrics, r=B=>'<b style="color:var(--'+B+')">';
+  var cls=B=>'style="background:var(--'+B+'bg);color:var(--'+B+'tx);padding:2px 6px;border-radius:4px;font-weight:600;font-size:13px"';
+  function pct(v,c){return (v>0?'+':'')+v+'%';}
+  function num(v,d){return (v||0).toFixed(d||1);}
+
+  var h='<div class=g4>';
+  var cards=[
+    {l:'总收益率',v:m.total_return,c:m.total_return>0?'G':'R',u:'%'},
+    {l:'年化收益',v:m.annual_return,c:m.annual_return>0?'G':'R',u:'%'},
+    {l:'最大回撤',v:m.max_drawdown,c:'R',u:'%'},
+    {l:'夏普比率',v:m.sharpe_ratio,c:m.sharpe_ratio>1?'G':'A'},
+    {l:'胜率',v:m.win_rate,u:'%',c:m.win_rate>50?'G':'R'},
+    {l:'交易次数',v:m.total_trades,c:'B'},
+    {l:'沪深300',v:m.benchmark_return,c:m.benchmark_return>0?'G':'R',u:'%'},
+    {l:'超额收益',v:m.excess_return,c:m.excess_return>0?'G':'R',u:'%'},
+  ];
+  cards.forEach(function(c){
+    h+='<div class=card style="text-align:center;padding:14px 10px">';
+    h+='<div style="font-size:11px;color:var(--tx2);margin-bottom:4px">'+c.l+'</div>';
+    h+='<div style="font-size:22px;font-weight:700;color:var(--'+c.c+'tx)">'+(c.v>=0?'+':'')+num(c.v,2)+(c.u||'')+'</div></div>';
+  });
+  h+='</div>';
+
+  // 净值曲线
+  if(BT.equity_curve&&BT.equity_curve.length>1){
+    var ec=BT.equity_curve;
+    h+='<div class=card><div class=ct>净值曲线 vs 沪深300</div><div id=btChart style="height:320px"></div></div>';
+    setTimeout(function(){
+      var el=document.getElementById('btChart');
+      if(!el||typeof echarts==='undefined') return;
+      var chart=echarts.init(el);
+      var dates=ec.map(function(d){return d.date});
+      var nav=ec.map(function(d){return d.nav});
+      var bench=ec.map(function(d){return d.benchmark});
+      chart.setOption({
+        tooltip:{trigger:'axis'},legend:{data:['策略净值','沪深300'],bottom:0},
+        grid:{left:50,right:20,bottom:30,top:10},
+        xAxis:{type:'category',data:dates,axisLabel:{rotate:45,fontSize:10}},
+        yAxis:{type:'value',scale:true},
+        series:[
+          {name:'策略净值',type:'line',data:nav,smooth:true,lineStyle:{width:2},itemStyle:{color:'#378add'}},
+          bench ? {name:'沪深300',type:'line',data:bench,smooth:true,lineStyle:{width:1.5,type:'dashed'},
+                   itemStyle:{color:'#999'}} : {},
+        ]
+      });
+    },100);
+  }
+
+  // 回撤曲线
+  if(BT.equity_curve){
+    h+='<div class=card><div class=ct>回撤曲线</div><div id=ddChart style="height:200px"></div></div>';
+    setTimeout(function(){
+      var el=document.getElementById('ddChart');
+      if(!el||typeof echarts==='undefined') return;
+      var chart=echarts.init(el);
+      var dates=BT.equity_curve.map(function(d){return d.date});
+      var dd=BT.equity_curve.map(function(d){return d.drawdown});
+      chart.setOption({
+        tooltip:{trigger:'axis'},grid:{left:50,right:20,bottom:25},
+        xAxis:{type:'category',data:dates,axisLabel:{fontSize:9}},
+        yAxis:{type:'value',min:function(v){return v.min-5},axisLabel:{formatter:'{value}%'}},
+        series:[{type:'line',data:dd,areaStyle:{color:'rgba(226,75,74,0.15)'},
+                 lineStyle:{width:1.5,color:'#e24b4a'},itemStyle:{color:'#e24b4a'}}]
+      });
+    },200);
+  }
+
+  // 交易记录表
+  if(bT&&bT.length>0){
+    h+='<div class=card><div class=ct>交易记录 ('+bT.length+' 笔)</div><div style="overflow-x:auto">';
+    h+='<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:var(--sf2)">';
+    ['入场','出场','持仓','入场价','出场价','手数','金额','收益率','盈亏','原因'].forEach(function(l){
+      h+='<th style="padding:6px 8px;text-align:left;white-space:nowrap">'+l+'</th>';
+    });
+    h+='</tr></thead><tbody>';
+    bT.forEach(function(t){
+      var hold=t.exit_date&&t.entry_date?Math.round((new Date(t.exit_date)-new Date(t.entry_date))/86400000):'-';
+      var cls='background:var(--'+(t.return_pct>0?'G':'R')+'bg);color:var(--'+(t.return_pct>0?'G':'R')+'tx)';
+      h+='<tr style="border-bottom:1px solid var(--bd)">';
+      h+='<td style="padding:5px 8px">'+t.entry_date+'</td>';
+      h+='<td style="padding:5px 8px">'+(t.exit_date||'-')+'</td>';
+      h+='<td style="padding:5px 8px">'+hold+'天</td>';
+      h+='<td style="padding:5px 8px">'+t.entry_price+'</td>';
+      h+='<td style="padding:5px 8px">'+(t.exit_price||'-')+'</td>';
+      h+='<td style="padding:5px 8px">'+t.shares+'</td>';
+      h+='<td style="padding:5px 8px">¥'+(t.amount|0).toLocaleString()+'</td>';
+      h+='<td style="padding:5px 8px;'+cls+'">'+(t.return_pct>0?'+':'')+t.return_pct+'%</td>';
+      h+='<td style="padding:5px 8px">¥'+(t.pnl>0?'+':'')+(t.pnl|0).toLocaleString()+'</td>';
+      h+='<td style="padding:5px 8px;color:var(--tx2);font-size:11px">'+t.reason+'</td>';
+      h+='</tr>';
+    });
+    h+='</tbody></table></div></div>';
+  }
+
+  // 元信息
+  h+='<div class=card style="font-size:12px;color:var(--tx2)">';
+  h+=BT.meta.stock+' | '+BT.meta.period+' | 本金 ¥'+(BT.meta.initial_capital|0).toLocaleString();
+  h+='</div>';
+
+  return h;
+}
+
+// ── 记忆页面 ──────────────────────────────────────────────────────────────────
+var MT; // memory data
+function pgMemory(){
+  if(!MT) return '<div class=card><div class=ct>记忆库</div><p style="color:var(--tx2)">未找到记忆数据。<br>请先运行：<code>python export_json.py</code><br>（需要安装 ChromaDB：<code>pip install chromadb</code>）<br>生成后刷新本页即可查看。</p></div>';
+
+  var h='';
+  // 统计卡片
+  var s=MT.stats;
+  h+='<div class=g3>';
+  [['快照数',s.snapshots,'B'],['趋势记录',s.trends,'T'],['状态索引',s.states,'P']].forEach(function(c){
+    h+='<div class=card style="text-align:center;padding:14px">';
+    h+='<div style="font-size:11px;color:var(--tx2)">'+c[0]+'</div>';
+    h+='<div style="font-size:28px;font-weight:700;color:var(--'+c[2]+'tx)">'+c[1]+'</div></div>';
+  });
+  h+='</div>';
+
+  // 最新快照
+  var l=MT.latest;
+  if(l){
+    h+='<div class=card><div class=ct>最近分析摘要</div><div class=g3>';
+    var items=[
+      ['日期',l.date,'B'],['风险',l.risk_level+' ('+l.risk_score+'分)',l.risk_level=='GREEN'?'G':'R'],
+      ['L1实业',l.l1_score+'分','T'],['L2金融',l.l2_score+'分','T'],
+      ['活跃产业链',l.active_chains+'条','P'],['买入决策',l.go_decisions+'个','G'],
+    ];
+    items.forEach(function(i){
+      h+='<div style="padding:4px 0"><span style="color:var(--tx2);font-size:12px">'+i[0]+'</span><br>';
+      h+='<span style="font-weight:600;color:var(--'+i[2]+'tx)">'+i[1]+'</span></div>';
+    });
+    h+='</div></div>';
+  }
+
+  // 个股趋势表
+  var st=MT.stocks;
+  if(st&&st.length>0){
+    h+='<div class=card><div class=ct>个股评分趋势</div><div style="overflow-x:auto">';
+    h+='<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:var(--sf2)">';
+    ['股票','记录数','L4评分','评分变化','仓位','仓位变化','判定'].forEach(function(l){
+      h+='<th style="padding:6px 8px;text-align:left;white-space:nowrap">'+l+'</th>';
+    });
+    h+='</tr></thead><tbody>';
+    st.forEach(function(s){
+      var sc=s.current.l4_score, sd=s.delta.l4_score;
+      var pc=s.current.position_pct, pd=s.delta.position_pct;
+      h+='<tr style="border-bottom:1px solid var(--bd)">';
+      h+='<td style="padding:5px 8px"><b>'+s.code+'</b> '+s.name+'</td>';
+      h+='<td style="padding:5px 8px;color:var(--tx2)">'+s.records+'</td>';
+      h+='<td style="padding:5px 8px;font-weight:600">'+sc+'</td>';
+      h+='<td style="padding:5px 8px;color:var(--'+(sd>=0?'G':'R')+'tx)">'+(sd>0?'+':'')+sd+'</td>';
+      h+='<td style="padding:5px 8px">'+pc+'%</td>';
+      h+='<td style="padding:5px 8px;color:var(--'+(pd>=0?'G':'R')+'tx)">'+(pd>0?'+':'')+pd+'%</td>';
+      h+='<td style="padding:5px 8px"><span style="background:var(--'+(s.current.verdict=='GO'?'G':s.current.verdict=='WAIT'?'A':'R')+'bg);color:var(--'+(s.current.verdict=='GO'?'G':s.current.verdict=='WAIT'?'A':'R')+'tx);padding:2px 6px;border-radius:4px;font-weight:600;font-size:11px">'+s.current.verdict+'</span></td>';
+      h+='</tr>';
+    });
+    h+='</tbody></table></div></div>';
+  }
+
+  return h;
+}
+
 // ── 路由 ─────────────────────────────────────────────────────────────────────
-const PAGES={ov:pgOv,trend:pgTrend,l0:pgL0,l1:pgL1,l2:pgL2,l3:pgL3,l4:pgL4,l5:pgL5,logic:pgLogic};
+const PAGES={ov:pgOv,trend:pgTrend,l0:pgL0,l1:pgL1,l2:pgL2,l3:pgL3,l4:pgL4,l5:pgL5,logic:pgLogic,backtest:pgBacktest,memory:pgMemory};
 let curPage='ov';
 
 function showPage(name,el){
@@ -1157,11 +1328,17 @@ var DEMO_DATA={
 // ── 数据加载（四级回退：HTTP fetch → 内嵌数据 → 内置示例 → 手动选择文件） ─────────
 var _isDemo=false;
 async function loadData(){
+  // 并行加载主数据、回测、记忆
+  var [dResp,btResp,memResp]=await Promise.all([
+    fetch('dashboard.json?t='+Date.now()).catch(function(){}),
+    fetch('backtest_report.json?t='+Date.now()).catch(function(){}),
+    fetch('memory_snapshot.json?t='+Date.now()).catch(function(){}),
+  ]);
+  if(btResp&&btResp.ok) BT=await btResp.json();
+  if(memResp&&memResp.ok) MT=await memResp.json();
+
   // 优先级1：HTTP fetch（http.server 模式）
-  try{
-    const r=await fetch('dashboard.json?t='+Date.now());
-    if(r.ok){ D=await r.json(); applyData(); return; }
-  }catch(e){}
+  if(dResp&&dResp.ok){ D=await dResp.json(); applyData(); return; }
 
   // 优先级2：读取内嵌数据（dashboard_standalone.html 模式）
   try{

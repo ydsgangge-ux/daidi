@@ -403,6 +403,11 @@ def run_export(capital: float = 1_000_000,
         store.save_analysis(payload)
         stats = store.get_stats()
         logger.info(f"记忆库已更新: {stats['trends']} 条趋势记录")
+
+        # 导出记忆快照供 Web 前端读取
+        memory_json = os.path.join(os.path.dirname(output_path), "memory_snapshot.json")
+        with open(memory_json, "w", encoding="utf-8") as f:
+            json.dump(store.export_web_summary(), f, ensure_ascii=False, indent=2)
     except ImportError:
         pass  # ChromaDB 未安装，跳过
     except Exception as e:

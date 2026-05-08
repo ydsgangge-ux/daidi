@@ -279,6 +279,7 @@ class MemoryStore:
         for i, meta in enumerate(results["metadatas"]):
             records.append({
                 "date": meta.get("date", ""),
+                "name": meta.get("name", ""),
                 "l0_pass": bool(meta.get("l0_pass", False)),
                 "l1_pass": bool(meta.get("l1_pass", False)),
                 "l2_pass": bool(meta.get("l2_pass", False)),
@@ -407,6 +408,68 @@ class MemoryStore:
             "states": self.states.count(),
             "persist_dir": self.persist_dir,
         }
+
+    def export_web_summary(self) -> dict:
+        """
+        导出 Web 前端可展示的记忆摘要
+        返回：统计信息 + 最新快照 + 所有股票的最新趋势变化
+        """
+        summary = {"stats": self.get_stats()}
+
+        # 最新快照
+        summary["latest"] = self.get_latest_snapshot()
+
+        # 获取所有出现过的股票代码
+        try:
+            trends_all = self.trends.get(
+                include=["metadatas"]
+            )
+            codes_seen = set()
+            if trends_all and trends_all["metadatas"]:
+                for m in trends_all["metadatas"]:
+                    c = m.get("code")
+                    if c:
+                        codes_seen.add(c)
+
+            stock_trends = []
+            for code in sorted(codes_seen):
+                history = self.get_stock_history(code)
+                if len(history) >= 2:
+                    latest = history[-1]
+                    prev = history[-2]
+                    stock_trends.append({
+                        "code": code,
+                        "name": latest.get("name", ""),
+                        "records": len(history),
+                        "current": {
+                            "l4_score": latest["l4_score"],
+                            "position_pct": latest["position_pct"],
+                            "verdict": latest["verdict"],
+                        },
+                        "delta": {
+                            "l4_score": round(latest["l4_score"] - prev["l4_score"], 1),
+                            "position_pct": round(latest["position_pct"] - prev["position_pct"], 1),
+                        },
+                    })
+                elif len(history) == 1:
+                    h = history[0]
+                    stock_trends.append({
+                        "code": code,
+                        "name": h.get("name", ""),
+                        "records": 1,
+                        "current": {
+                            "l4_score": h["l4_score"],
+                            "position_pct": h["position_pct"],
+                            "verdict": h["verdict"],
+                        },
+                        "delta": {"l4_score": 0, "position_pct": 0},
+                    })
+
+            summary["stocks"] = stock_trends
+        except Exception:
+            summary["stocks"] = []
+
+        return summary
 
 
 # ═══════════════════════════════════════════════════════════════════════
