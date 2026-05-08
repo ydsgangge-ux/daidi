@@ -243,7 +243,9 @@ python test_all.py
 | `reports/report_*.txt` | 文本报告存档 | `python main.py` 自动保存 |
 | `web/config.html` | 大模型配置页面 | `python setup_llm.py` 打开 |
 | `web/dashboard.json` | 结构化 JSON 数据 | `python export_json.py` |
+| `web/backtest_report.json` | 回测绩效报告 | `python backtest.py` |
 | `web/index.html` | Web 可视化面板 | 双击打开，读取 JSON |
+| `memory/` | ChromaDB 长期记忆持久化 | `export_json.py` 自动写入 |
 | `logs/` | 运行日志 | 自动生成 |
 
 ---
@@ -270,7 +272,9 @@ python test_all.py
 
 ### 添加/修改分析标的
 
-编辑 `layer45_stocks.py` 中的 `COMPANY_DB` 字典：
+系统支持两类标的导入：
+
+**方式一：静态库（`layer45_stocks.py` 中的 `COMPANY_DB`）**
 
 ```python
 "300308": CompanyProfile(
@@ -281,18 +285,32 @@ python test_all.py
 ),
 ```
 
-### 调整异动阈值
+**方式二：LLM 动态发现（推荐）**
+不修改代码，系统在 L3 产业链分析时通过 LLM 自动识别产业链各节点的上市公司，自动评分并加入分析。动态发现的标的以 `(D)` 标记，评分、仓位计算流程与静态标的一致。
 
-在 `layer1_industry.py` 的 `_safe()` 函数中修改 Z-Score 阈值：
+### 调整策略参数（仓位、阈值、风控）
 
-- `> 2.0` → ALERT_UP（强烈异动）
-- `> 1.5` → UP（正向信号）
-- `< -1.5` → DOWN（负向信号）
-- `< -2.0` → ALERT_DOWN（强烈异动）
+所有可调参数统一在 `strategy_config.py` 中管理，修改此文件即生效，无需改动各层代码：
+
+```python
+# 仓位上限（牛市/震荡/熊市）
+ENV_SINGLE_CAP = {"BULL": 10.0, "SIDEWAYS": 6.0, "BEAR": 2.0}
+
+# Z-Score 异动阈值
+L1_ZSCORE_ALERT = 2.0     # 强烈异动
+L1_ZSCORE_UP = 1.5        # 正向信号
+L1_ZSCORE_DOWN = -1.5     # 负向信号
+L1_ZSCORE_ALERT_DOWN = -2.0
+
+# 产业链周期起始日期（每季度需更新）
+CHAIN_CYCLE_START = {
+    "AI算力链": "2024-10",
+    "半导体材料链": "2024-06",
+    # ...
+}
+```
 
 ### 修改国际信号关键词
-
-编辑 `international_signals.py` 中的 `KEYWORD_GROUPS` 字典，按产业链添加/删除新闻搜索关键词。
 
 ### LLM 模型切换
 
