@@ -126,22 +126,34 @@ class MemoryStore:
 
         if "layer3" in data:
             l3 = data["layer3"]
-            for ch in (l3.get("chains") or []):
-                parts.append(f"产业链{ch.get('chain','')} 激活强度{ch.get('strength',0)}")
+            if isinstance(l3, dict):
+                for ch in (l3.get("active") or l3.get("chains") or []):
+                    parts.append(f"产业链{ch.get('chain','')} 激活强度{ch.get('strength',0)}")
 
         if "layer4" in data:
             l4 = data["layer4"]
-            for p in (l4.get("profiles") or []):
-                parts.append(f"个股{p.get('name','')} "
-                             f"评分{p.get('scores',{}).get('total',0)} "
-                             f"判定{p.get('verdict','')}")
+            if isinstance(l4, list):
+                for p in l4:
+                    parts.append(f"个股{p.get('name','')} "
+                                 f"评分{p.get('scores',{}).get('total',0)} "
+                                 f"判定{p.get('verdict','')}")
+            elif isinstance(l4, dict):
+                for p in (l4.get("profiles") or []):
+                    parts.append(f"个股{p.get('name','')} "
+                                 f"评分{p.get('scores',{}).get('total',0)} "
+                                 f"判定{p.get('verdict','')}")
 
         if "decisions" in data:
-            for d in (data["decisions"] or []):
-                parts.append(f"决策{d.get('name','')} "
-                             f"方向{d.get('verdict','')} "
-                             f"仓位{d.get('position_pct',0)}% "
-                             f"止损{d.get('stop_loss_pct',0)}%")
+            decisions = data["decisions"]
+        elif "layer5" in data:
+            decisions = data["layer5"]
+        else:
+            decisions = []
+        for d in (decisions or []):
+            parts.append(f"决策{d.get('name','')} "
+                         f"方向{d.get('verdict','')} "
+                         f"仓位{d.get('position_pct',0)}% "
+                         f"止损{d.get('stop_loss_pct',0)}%")
 
         return " | ".join(parts)
 
@@ -165,21 +177,31 @@ class MemoryStore:
         # Layer 3 活跃链数
         active_chains = 0
         if "layer3" in data:
-            for ch in (data["layer3"].get("chains") or []):
-                if ch.get("active"):
-                    active_chains += 1
+            l3 = data["layer3"]
+            if isinstance(l3, dict):
+                for ch in (l3.get("active") or l3.get("chains") or []):
+                    if ch.get("active"):
+                        active_chains += 1
         meta["active_chains"] = active_chains
 
         # Layer 4 优秀股数
         real_count = 0
         if "layer4" in data:
-            for p in (data["layer4"].get("profiles") or []):
+            l4 = data["layer4"]
+            if isinstance(l4, list):
+                profiles_iter = l4
+            elif isinstance(l4, dict):
+                profiles_iter = l4.get("profiles") or []
+            else:
+                profiles_iter = []
+            for p in profiles_iter:
                 if p.get("verdict") == "REAL":
                     real_count += 1
         meta["real_stocks"] = real_count
 
         # 决策数
-        go_count = sum(1 for d in (data.get("decisions") or [])
+        decisions_data = data.get("decisions") or data.get("layer5") or []
+        go_count = sum(1 for d in decisions_data
                        if d.get("verdict") == "GO")
         meta["go_decisions"] = go_count
 
@@ -191,10 +213,11 @@ class MemoryStore:
 
     def _record_stock_trends(self, data: dict, date: str):
         """记录各只股票的评分/仓位变化趋势"""
-        if "decisions" not in data:
+        decisions = data.get("decisions") or data.get("layer5") or []
+        if not decisions:
             return
 
-        for dec in (data["decisions"] or []):
+        for dec in decisions:
             code = dec.get("code", "")
             name = dec.get("name", "")
             if not code:

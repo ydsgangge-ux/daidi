@@ -57,6 +57,10 @@ echo  [*] Starting 6-layer market analysis (takes 1-3 minutes)...
 echo.
 python export_json.py
 echo.
+echo  [*] Running backtest (default: 300394 天孚通信)...
+echo.
+python backtest.py
+echo.
 
 REM ── 5. Start Web server and open browser ──
 echo  [*] Starting Web server...

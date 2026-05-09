@@ -402,7 +402,7 @@ def run_export(capital: float = 1_000_000,
         store = MemoryStore()
         store.save_analysis(payload)
         stats = store.get_stats()
-        logger.info(f"记忆库已更新: {stats['trends']} 条趋势记录")
+        _log.info(f"记忆库已更新: {stats['trends']} 条趋势记录")
 
         # 导出记忆快照供 Web 前端读取
         memory_json = os.path.join(os.path.dirname(output_path), "memory_snapshot.json")
@@ -411,7 +411,7 @@ def run_export(capital: float = 1_000_000,
     except ImportError:
         pass  # ChromaDB 未安装，跳过
     except Exception as e:
-        logger.debug(f"记忆库写入失败: {e}")
+        _log.debug(f"记忆库写入失败: {e}")
 
     # 同时生成一个自带数据的 HTML（可直接双击打开，无需 HTTP 服务器）
     standalone_path = os.path.join(out_dir or ".", "dashboard_standalone.html")
