@@ -400,14 +400,38 @@ def run_export(capital: float = 1_000_000,
     try:
         from memory_store import MemoryStore
         store = MemoryStore()
+
+        # 1. 保存分析快照
         store.save_analysis(payload)
         stats = store.get_stats()
         _log.info(f"记忆库已更新: {stats['trends']} 条趋势记录")
 
-        # 导出记忆快照供 Web 前端读取
+        # 2. 更新预测追踪（GO/WAIT/NO 与实际走势对比）
+        def _get_price_for_pred(code):
+            try:
+                from layer45_stocks import _get_current_price
+                return _get_current_price(code) or 0
+            except Exception:
+                return 0
+        store.save_or_update_predictions(
+            payload.get("layer5") or payload.get("decisions") or [],
+            price_fn=_get_price_for_pred
+        )
+
+        # 3. 导出预测账本供 Web 前端
+        pred_ledger = store.export_prediction_ledger()
+        ledger_path = os.path.join(os.path.dirname(output_path), "prediction_ledger.json")
+        with open(ledger_path, "w", encoding="utf-8") as f:
+            json.dump(pred_ledger, f, ensure_ascii=False, indent=2)
+
+        # 4. 导出记忆快照供 Web 前端读取
         memory_json = os.path.join(os.path.dirname(output_path), "memory_snapshot.json")
         with open(memory_json, "w", encoding="utf-8") as f:
             json.dump(store.export_web_summary(), f, ensure_ascii=False, indent=2)
+
+        pred_acc = store.get_prediction_accuracy()
+        if pred_acc.get("total_closed", 0) > 0:
+            _log.info(f"预测追踪: GO胜率{pred_acc['win_rate']}% ({pred_acc['wins']}胜/{pred_acc['losses']}负)")
     except ImportError:
         pass  # ChromaDB 未安装，跳过
     except Exception as e:

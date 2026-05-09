@@ -1136,7 +1136,7 @@ function pgBacktest(){
 }
 
 // ── 记忆页面 ──────────────────────────────────────────────────────────────────
-var MT; // memory data
+var MT,PL; // memory data, prediction ledger
 function pgMemory(){
   if(!MT) return '<div class=card><div class=ct>记忆库</div><p style="color:var(--tx2)">未找到记忆数据。<br>请先运行：<code>python export_json.py</code><br>（需要安装 ChromaDB：<code>pip install chromadb</code>）<br>生成后刷新本页即可查看。</p></div>';
 
@@ -1187,6 +1187,53 @@ function pgMemory(){
       h+='<td style="padding:5px 8px">'+pc+'%</td>';
       h+='<td style="padding:5px 8px;color:var(--'+(pd>=0?'G':'R')+'tx)">'+(pd>0?'+':'')+pd+'%</td>';
       h+='<td style="padding:5px 8px"><span style="background:var(--'+(s.current.verdict=='GO'?'G':s.current.verdict=='WAIT'?'A':'R')+'bg);color:var(--'+(s.current.verdict=='GO'?'G':s.current.verdict=='WAIT'?'A':'R')+'tx);padding:2px 6px;border-radius:4px;font-weight:600;font-size:11px">'+s.current.verdict+'</span></td>';
+      h+='</tr>';
+    });
+    h+='</tbody></table></div></div>';
+  }
+
+  // ── 预测准确率 ──
+  if(PL&&PL.stats&&PL.stats.total_closed>0){
+    var ps=PL.stats;
+    h+='<div class=card style="border:2px solid var(--'+(ps.win_rate>=50?'T':'R')+'tx)"><div class=ct>预测追踪 — GO 决策准确率</div><div class=g4>';
+    [
+      ['总预测',ps.total_closed+ps.total_open,'B'],['已完结',ps.total_closed,'B'],
+      ['胜',ps.wins,'G'],['负',ps.losses,'R'],
+      ['胜率',ps.win_rate+'%',ps.win_rate>=50?'G':'R'],
+      ['平均盈利',ps.avg_win_pct>0?'+'+ps.avg_win_pct+'%':'0%','G'],
+      ['平均亏损',ps.avg_loss_pct+'%','R'],
+      ['总盈亏',(ps.total_pnl>0?'+':'')+ps.total_pnl+'%',ps.total_pnl>=0?'G':'R'],
+    ].forEach(function(c){
+      h+='<div style="text-align:center;padding:8px"><div style="font-size:11px;color:var(--tx2)">'+c[0]+'</div>';
+      h+='<div style="font-size:20px;font-weight:700;color:var(--'+c[2]+'tx)">'+c[1]+'</div></div>';
+    });
+    h+='</div></div>';
+  }
+
+  // ── 预测账本明细 ──
+  if(PL&&PL.predictions&&PL.predictions.length>0){
+    h+='<div class=card><div class=ct>预测账本</div><div style="overflow-x:auto">';
+    h+='<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:var(--sf2)">';
+    ['股票','入场','出场','持仓','入场价','最新价','盈亏','峰值','止损','周期','状态'].forEach(function(l){
+      h+='<th style="padding:5px 7px;text-align:left;white-space:nowrap">'+l+'</th>';
+    });
+    h+='</tr></thead><tbody>';
+    PL.predictions.slice().reverse().forEach(function(p){
+      var sc=p.pnl_pct>0?'G':p.pnl_pct<0?'R':'B';
+      var statusC=p.status=='OPEN'?'B':p.status=='STOPPED'?'R':'G';
+      var hold=p.days_held||(p.exit_date&&p.entry_date?Math.round((new Date(p.exit_date)-new Date(p.entry_date))/86400000):'-');
+      h+='<tr style="border-bottom:1px solid var(--bd)">';
+      h+='<td style="padding:4px 7px"><b>'+p.code+'</b> '+p.name+'</td>';
+      h+='<td style="padding:4px 7px;font-size:11px">'+p.entry_date+'</td>';
+      h+='<td style="padding:4px 7px;font-size:11px">'+(p.exit_date||'-')+'</td>';
+      h+='<td style="padding:4px 7px">'+hold+(typeof hold=='number'?'天':'')+'</td>';
+      h+='<td style="padding:4px 7px">¥'+(p.entry_price|0).toLocaleString()+'</td>';
+      h+='<td style="padding:4px 7px">¥'+(p.latest_price|0).toLocaleString()+'</td>';
+      h+='<td style="padding:4px 7px;font-weight:600;color:var(--'+sc+'tx)">'+(p.pnl_pct>0?'+':'')+p.pnl_pct+'%</td>';
+      h+='<td style="padding:4px 7px;color:var(--tx2)">'+(p.peak_pnl>0?'+':'')+p.peak_pnl+'%</td>';
+      h+='<td style="padding:4px 7px;font-size:11px">'+p.stop_loss_pct+'%</td>';
+      h+='<td style="padding:4px 7px;font-size:11px;color:var(--tx2)">'+p.cycle_phase+'</td>';
+      h+='<td style="padding:4px 7px"><span style="background:var(--'+statusC+'bg);color:var(--'+statusC+'tx);padding:2px 6px;border-radius:4px;font-weight:600;font-size:10px">'+p.status+'</span></td>';
       h+='</tr>';
     });
     h+='</tbody></table></div></div>';
@@ -1329,13 +1376,15 @@ var DEMO_DATA={
 var _isDemo=false;
 async function loadData(){
   // 并行加载主数据、回测、记忆
-  var [dResp,btResp,memResp]=await Promise.all([
+  var [dResp,btResp,memResp,predResp]=await Promise.all([
     fetch('dashboard.json?t='+Date.now()).catch(function(){}),
     fetch('backtest_report.json?t='+Date.now()).catch(function(){}),
     fetch('memory_snapshot.json?t='+Date.now()).catch(function(){}),
+    fetch('prediction_ledger.json?t='+Date.now()).catch(function(){}),
   ]);
   if(btResp&&btResp.ok) BT=await btResp.json();
   if(memResp&&memResp.ok) MT=await memResp.json();
+  if(predResp&&predResp.ok) PL=await predResp.json();
 
   // 优先级1：HTTP fetch（http.server 模式）
   if(dResp&&dResp.ok){ D=await dResp.json(); applyData(); return; }

@@ -11,13 +11,15 @@
   搜索"类似当前光模块景气度扩散的市场状态"
   → 返回历史上最相似的时期及其后续走势
 
+预测追踪 — 记录每次 GO/NO/WAIT 决策，与实际走势对比，自动计算系统胜率
+
 数据目录：./memory/  （Git 已忽略，属于本地持久化数据）
 """
 
 import os
 import json
 import hashlib
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 import pandas as pd
 
@@ -34,6 +36,8 @@ MEMORY_DIR = os.path.join(os.path.dirname(__file__), "memory")
 SNAPSHOT_COLLECTION = "analysis_snapshots"     # 分析快照
 TREND_COLLECTION = "signal_trends"             # 信号趋势
 SIMILARITY_COLLECTION = "state_similarity"     # 状态相似搜索
+PREDICTION_COLLECTION = "predictions"          # 预测追踪
+PREDICTION_LEDGER_FILE = "prediction_ledger.json"  # 明文账本（方便查看）
 
 
 class MemoryStore:
@@ -60,6 +64,7 @@ class MemoryStore:
         self.snapshots = self._get_collection(SNAPSHOT_COLLECTION)
         self.trends = self._get_collection(TREND_COLLECTION)
         self.states = self._get_collection(SIMILARITY_COLLECTION)
+        self.predictions = self._get_collection(PREDICTION_COLLECTION)
 
     def _get_collection(self, name: str):
         """获取集合（已存在则加载，否则创建）"""
@@ -423,12 +428,266 @@ class MemoryStore:
             }
         return None
 
+    # ═══════════════════════════════════════════════════════════════════════
+    # 4. 预测追踪 — 记录决策与实际走势的对比
+    # ═══════════════════════════════════════════════════════════════════════
+
+    def save_or_update_predictions(self, decisions: list, date: str = None,
+                                    price_fn=None) -> None:
+        """
+        保存/更新预测记录。
+        decisions: export_json 的 layer5 列表
+        price_fn: 获取当前价格的函数，如 lambda code: _get_current_price(code)
+        """
+        date = date or datetime.now().strftime("%Y-%m-%d")
+
+        # 获取所有开仓预测（ChromaDB where 不支持多字段 AND，全量在 Python 中过滤）
+        open_by_code = {}
+        if self.predictions.count() > 0:
+            try:
+                all_open = self.predictions.get(
+                    include=["metadatas"],
+                    where={"status": "OPEN"},
+                )
+                if all_open and all_open["metadatas"]:
+                    for i, meta in enumerate(all_open["metadatas"]):
+                        c = meta.get("code", "")
+                        if c:
+                            open_by_code.setdefault(c, []).append({
+                                "id": all_open["ids"][i],
+                                "meta": meta,
+                            })
+            except Exception:
+                pass  # 空集合时 where 可能抛异常
+
+        for dec in decisions:
+            code = dec.get("code", "")
+            name = dec.get("name", "")
+            verdict = dec.get("verdict", "")
+            if not code or verdict == "":
+                continue
+
+            existing_list = open_by_code.get(code, None)
+
+            if verdict == "GO":
+                # ── 新的GO预测 ──
+                if not existing_list or len(existing_list) == 0:
+                    entry_price = price_fn(code) if price_fn else 0
+                    pred_id = f"pred_{code}_{date.replace('-','')}"
+
+                    pred_text = (
+                        f"{date} GO {name}({code}) "
+                        f"入场价{entry_price} 止损{dec.get('stop_loss_pct',0)}% "
+                        f"仓位{dec.get('position_pct',0)}% "
+                        f"周期{dec.get('cycle_phase','')} "
+                        f"成熟度{dec.get('cycle_maturity',50)}"
+                    )
+
+                    self.predictions.add(
+                        ids=[pred_id],
+                        documents=[pred_text],
+                        metadatas=[{
+                            "code": code, "name": name,
+                            "entry_date": date,
+                            "entry_price": entry_price,
+                            "latest_price": entry_price,
+                            "latest_date": date,
+                            "verdict": "GO",
+                            "stop_loss_pct": dec.get("stop_loss_pct", 0) or 0,
+                            "position_pct": dec.get("position_pct", 0) or 0,
+                            "cycle_phase": dec.get("cycle_phase", ""),
+                            "cycle_maturity": dec.get("cycle_maturity", 50) or 50,
+                            "cycle_remaining": dec.get("cycle_remaining_months", 0) or 0,
+                            "status": "OPEN",
+                            "peak_pnl": 0.0,
+                            "hit_stop_loss": 0,
+                        }]
+                    )
+                else:
+                    # 已有开仓GO，更新当前价格
+                    self._update_open_prediction(existing_list, code, date, price_fn)
+
+            else:
+                # ── WAIT 或 NO：关闭该股票已有的开仓GO ──
+                if existing_list and len(existing_list) > 0:
+                    for item in existing_list:
+                        meta = item["meta"]
+                        if meta.get("status") == "OPEN":
+                            pred_id = item["id"]
+                            exit_price = price_fn(code) if price_fn else meta.get("latest_price", 0)
+                            entry_price = meta.get("entry_price", 0)
+                            pnl = ((exit_price - entry_price) / entry_price * 100) if entry_price > 0 else 0
+
+                            self.predictions.update(
+                                ids=[pred_id],
+                                metadatas=[{
+                                    "exit_date": date,
+                                    "exit_price": exit_price,
+                                    "exit_reason": f"verdict 变更为 {verdict}",
+                                    "status": "CLOSED",
+                                    "pnl_pct": round(pnl, 2),
+                                    "latest_price": exit_price,
+                                    "latest_date": date,
+                                }]
+                            )
+
+    def _update_open_prediction(self, existing_list: list, code: str,
+                                date: str, price_fn) -> None:
+        """更新开仓中的预测：当前价、最大浮盈、是否碰过止损"""
+        if not existing_list:
+            return
+
+        current_price = price_fn(code) if price_fn else None
+        if not current_price or current_price <= 0:
+            return
+
+        for item in existing_list:
+            meta = item["meta"]
+            if meta.get("status") != "OPEN":
+                continue
+
+            pred_id = item["id"]
+            entry_price = meta.get("entry_price", 0)
+            stop_loss_pct = meta.get("stop_loss_pct", 0) or 0
+            peak_pnl = meta.get("peak_pnl", 0) or 0
+
+            if entry_price <= 0:
+                continue
+
+            pnl = round((current_price - entry_price) / entry_price * 100, 2)
+            peak_pnl = max(peak_pnl, pnl)
+
+            # 是否碰过止损线（盘中最低价通常无法实时获取，用收盘价近似）
+            hit_stop = 1 if pnl <= -stop_loss_pct else meta.get("hit_stop_loss", 0)
+
+            days_held = (datetime.strptime(date, "%Y-%m-%d") -
+                         datetime.strptime(meta.get("entry_date", date), "%Y-%m-%d")).days
+
+            self.predictions.update(
+                ids=[pred_id],
+                metadatas=[{
+                    "latest_price": current_price,
+                    "latest_date": date,
+                    "pnl_pct": pnl,
+                    "peak_pnl": round(peak_pnl, 2),
+                    "days_held": days_held,
+                    "hit_stop_loss": hit_stop,
+                    "status": "STOPPED" if hit_stop else "OPEN",
+                }]
+            )
+
+    def get_prediction_accuracy(self) -> dict:
+        """
+        计算预测准确率统计
+        返回：GO 胜率、NO 准确率、平均盈亏等
+        """
+        all_preds = self.predictions.get(
+            include=["metadatas"]
+        )
+
+        if not all_preds or not all_preds["metadatas"]:
+            return {"total": 0, "note": "尚无预测记录"}
+
+        # 按状态分类
+        open_count = 0
+        closed = []  # (pnl, days_held, code, name, entry_date)
+        active = []
+
+        for i, meta in enumerate(all_preds["metadatas"]):
+            status = meta.get("status", "")
+            pnl = meta.get("pnl_pct", 0) or 0
+            # 处理字符串格式
+            if isinstance(pnl, str):
+                try: pnl = float(pnl)
+                except: pnl = 0
+
+            if status == "OPEN":
+                open_count += 1
+                active.append({
+                    "code": meta.get("code", ""),
+                    "name": meta.get("name", ""),
+                    "entry_date": meta.get("entry_date", ""),
+                    "pnl_pct": pnl,
+                    "days_held": meta.get("days_held", 0),
+                })
+            elif status in ("CLOSED", "STOPPED"):
+                closed.append({
+                    "code": meta.get("code", ""),
+                    "name": meta.get("name", ""),
+                    "entry_date": meta.get("entry_date", ""),
+                    "pnl_pct": pnl,
+                    "days_held": meta.get("days_held", 0),
+                })
+
+        total_closed = len(closed)
+        wins = [c for c in closed if c["pnl_pct"] > 0]
+        losses = [c for c in closed if c["pnl_pct"] <= 0]
+
+        stats = {
+            "total_open": open_count,
+            "total_closed": total_closed,
+            "wins": len(wins),
+            "losses": len(losses),
+            "win_rate": round(len(wins) / total_closed * 100, 1) if total_closed > 0 else 0,
+            "avg_win_pct": round(sum(c["pnl_pct"] for c in wins) / len(wins), 2) if wins else 0,
+            "avg_loss_pct": round(sum(c["pnl_pct"] for c in losses) / len(losses), 2) if losses else 0,
+            "total_pnl": round(sum(c["pnl_pct"] for c in closed), 2),
+            "avg_days_held": round(sum(c["days_held"] for c in closed) / total_closed, 1) if total_closed > 0 else 0,
+            "active": active,
+        }
+        return stats
+
+    def export_prediction_ledger(self) -> dict:
+        """导出完整预测账本，供 Web 前端读取"""
+        all_preds = self.predictions.get(
+            include=["metadatas", "documents"]
+        )
+        if not all_preds or not all_preds["metadatas"]:
+            return {"predictions": [], "stats": self.get_prediction_accuracy()}
+
+        records = []
+        for i, meta in enumerate(all_preds["metadatas"]):
+            records.append({
+                "id": all_preds["ids"][i],
+                "code": meta.get("code", ""),
+                "name": meta.get("name", ""),
+                "entry_date": meta.get("entry_date", ""),
+                "entry_price": meta.get("entry_price", 0),
+                "latest_price": meta.get("latest_price", 0),
+                "latest_date": meta.get("latest_date", ""),
+                "exit_date": meta.get("exit_date", ""),
+                "exit_price": meta.get("exit_price", 0),
+                "exit_reason": meta.get("exit_reason", ""),
+                "verdict": meta.get("verdict", ""),
+                "pnl_pct": meta.get("pnl_pct", 0) or 0,
+                "peak_pnl": meta.get("peak_pnl", 0) or 0,
+                "days_held": meta.get("days_held", 0),
+                "status": meta.get("status", ""),
+                "stop_loss_pct": meta.get("stop_loss_pct", 0),
+                "position_pct": meta.get("position_pct", 0),
+                "cycle_phase": meta.get("cycle_phase", ""),
+                "cycle_maturity": meta.get("cycle_maturity", 0),
+            })
+
+        return {
+            "predictions": records,
+            "stats": self.get_prediction_accuracy(),
+        }
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # 5. 统计
+    # ═══════════════════════════════════════════════════════════════════════
+
     def get_stats(self) -> dict:
         """获取记忆库统计信息"""
+        pred_stats = self.get_prediction_accuracy()
         return {
             "snapshots": self.snapshots.count(),
             "trends": self.trends.count(),
             "states": self.states.count(),
+            "predictions": self.predictions.count(),
+            "prediction_win_rate": pred_stats.get("win_rate", 0),
+            "prediction_closed": pred_stats.get("total_closed", 0),
             "persist_dir": self.persist_dir,
         }
 
