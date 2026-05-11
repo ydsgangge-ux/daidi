@@ -2,6 +2,14 @@
 .env
 llm_config.json
 
+# ChromaDB 长期记忆（运行时生成）
+memory/
+
+# 回测报告 & 运行快照（运行时生成，不含投资隐私）
+web/backtest_report.json
+web/memory_snapshot.json
+web/prediction_ledger.json
+
 # Python 缓存
 __pycache__/
 *.pyc

@@ -3,4 +3,6 @@ pandas>=1.5.0
 numpy>=1.23.0
 rich>=13.0.0
 openai>=1.0.0
-chromadb>=1.5.0
+
+# chromadb 为可选依赖（长期记忆库），安装失败不影响核心功能
+# 如需启用：pip install chromadb
