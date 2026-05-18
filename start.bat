@@ -1,4 +1,7 @@
-@echo off
+﻿@echo off
+chcp 65001 >nul
+set PYTHONUTF8=1
+set PYTHONIOENCODING=utf-8
 title Daidi - 6-Layer Market Analysis System
 cd /d "%~dp0"
 

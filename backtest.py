@@ -17,8 +17,15 @@ import numpy as np
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict
-import json, os, sys
+import json, os, sys, io
 from pathlib import Path
+
+if sys.platform == "win32":
+    try:
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 # ── 导入现有分析模块 ──
 from layer45_stocks import (

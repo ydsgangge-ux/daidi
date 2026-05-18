@@ -34,6 +34,7 @@ from layer45_stocks  import run_layer4, run_layer5
 from trend_judge     import llm_trend_judge, trend_to_dict
 from llm_client      import is_available
 from international_signals import run_intl_signals_collection
+from etf_analysis    import run_etf_analysis
 
 
 def ind_to_dict(ind) -> dict:
@@ -300,6 +301,19 @@ def run_export(capital: float = 1_000_000,
         profiles = []
         decisions = []
 
+    # ── ETF 分析 ──
+    etf_data = {"categories": {}, "all": [], "summary": {"total": 0, "bullish_count": 0, "bearish_count": 0, "neutral_count": 0, "top_bullish": [], "top_bearish": [], "generated_at": ""}}
+    try:
+        print("  ETF 分析（宽基/行业/跨境/商品）...")
+        etf_data = run_etf_analysis()
+        print(f"  → 分析 {etf_data['summary']['total']} 只ETF，"
+              f"看多 {etf_data['summary']['bullish_count']} / "
+              f"看空 {etf_data['summary']['bearish_count']} / "
+              f"中性 {etf_data['summary']['neutral_count']}")
+    except Exception as e:
+        print(f"  [WARN] ETF 分析失败: {e}（详情见 logs/error.log）")
+        _log.exception("ETF 分析失败")
+
     # ── 组装 JSON ─────────────────────────────────────────────────────────
     all_l1 = (l1.food + l1.bulk + l1.macro + l1.infra + l1.electricity + l1.logistics)
 
@@ -388,6 +402,7 @@ def run_export(capital: float = 1_000_000,
             "no_count":      sum(1 for d in decisions if d.verdict == "NO"),
             "market_env":    env,
         },
+        "etf": etf_data,
     }
 
     out_dir = os.path.dirname(output_path)

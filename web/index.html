@@ -242,6 +242,7 @@ tr:last-child td{border-bottom:none;}
   <div class="nt" onclick="showPage('l5',this)">L5 个股决策</div>
   <div class="nt" onclick="showPage('logic',this)">逻辑链图谱</div>
   <div class="nt" onclick="showPage('backtest',this)">回测</div>
+  <div class="nt" onclick="showPage('etf',this)">ETF</div>
   <div class="nt" onclick="showPage('memory',this)">记忆</div>
 </div>
 
@@ -258,6 +259,7 @@ tr:last-child td{border-bottom:none;}
   <div id="pg-cross" class="page"></div>
   <div id="pg-trap"  class="page"></div>
   <div id="pg-backtest" class="page"></div>
+  <div id="pg-etf" class="page"></div>
   <div id="pg-memory" class="page"></div>
 </div>
 
@@ -1028,6 +1030,118 @@ function pgTrap(){
   </div>`;
 }
 
+// ── ETF 页面 ──────────────────────────────────────────────────────────────────
+var _etfCat='all';
+function pgEtf(){
+  const etf=D.etf;
+  if(!etf||!etf.summary||etf.summary.total===0) return '<div class=card><div class=ct>ETF 分析</div><p style="color:var(--tx2)">未找到 ETF 数据。<br>请先运行：<code>python export_json.py</code> 生成数据后刷新页面。</p></div>';
+  const s=etf.summary;
+  const sigColor={BULLISH:'var(--G)',LEAN_BULL:'var(--G)',NEUTRAL:'var(--tx2)',LEAN_BEAR:'var(--R)',BEARISH:'var(--R)'};
+  const sigTag={BULLISH:'tG',LEAN_BULL:'tG',NEUTRAL:'tN',LEAN_BEAR:'tR',BEARISH:'tR'};
+  const sigLabel={BULLISH:'看多',LEAN_BULL:'偏多',NEUTRAL:'中性',LEAN_BEAR:'偏空',BEARISH:'看空'};
+
+  var h=`
+  <div class="lblock lbB" style="margin-bottom:14px;"><div class="lblbl">ETF 投资指南</div>
+    <div class="lbtx">ETF（交易型开放式指数基金）是小投资者参与市场的最佳工具：费率低（通常0.5%）、分散风险（一篮子股票）、流动性好（盘中实时交易）、无需选股（跟踪指数）。本页覆盖宽基、行业主题、跨境、商品四大类 ETF，结合均线趋势和 RSI 指标给出操作建议。</div></div>
+
+  <div class="g4" style="margin-bottom:14px;">
+    <div class="mc"><div class="ml">监控ETF数量</div><div class="mv">${s.total}</div></div>
+    <div class="mc"><div class="ml">看多/偏多</div><div class="mv" style="color:var(--G);">${s.bullish_count}</div></div>
+    <div class="mc"><div class="ml">看空/偏空</div><div class="mv" style="color:var(--R);">${s.bearish_count}</div></div>
+    <div class="mc"><div class="ml">中性</div><div class="mv" style="color:var(--tx2);">${s.neutral_count}</div></div>
+  </div>`;
+
+  if(s.top_bullish&&s.top_bullish.length>0){
+    h+=`<div class="card" style="margin-bottom:12px;"><div class="ct">🔥 趋势最强 ETF（看多）</div>`;
+    s.top_bullish.forEach(function(e){
+      h+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--bd);">
+        <div><span style="font-weight:700;">${e.name}</span>
+          <span style="font-size:11px;color:var(--tx2);margin-left:6px;">${e.code} · ${e.index_name}</span>
+          <div style="font-size:12px;color:var(--tx2);margin-top:2px;">${e.desc}</div></div>
+        <div style="text-align:right;flex-shrink:0;margin-left:12px;">
+          <div style="font-size:17px;font-weight:700;color:var(--G);">${e.trend_score}分</div>
+          <div style="font-size:11px;color:var(--tx2);">价格 ${e.price} · ${e.change_pct>0?'+':''}${e.change_pct}%</div>
+        </div>
+      </div>`;
+    });
+    h+=`</div>`;
+  }
+
+  if(s.top_bearish&&s.top_bearish.length>0){
+    h+=`<div class="card" style="margin-bottom:12px;"><div class="ct">⚠ 趋势最弱 ETF（看空）</div>`;
+    s.top_bearish.forEach(function(e){
+      h+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--bd);">
+        <div><span style="font-weight:700;">${e.name}</span>
+          <span style="font-size:11px;color:var(--tx2);margin-left:6px;">${e.code} · ${e.index_name}</span>
+          <div style="font-size:12px;color:var(--tx2);margin-top:2px;">${e.desc}</div></div>
+        <div style="text-align:right;flex-shrink:0;margin-left:12px;">
+          <div style="font-size:17px;font-weight:700;color:var(--R);">${e.trend_score}分</div>
+          <div style="font-size:11px;color:var(--tx2);">价格 ${e.price} · ${e.change_pct>0?'+':''}${e.change_pct}%</div>
+        </div>
+      </div>`;
+    });
+    h+=`</div>`;
+  }
+
+  var cats=['all'];
+  if(etf.categories) cats=cats.concat(Object.keys(etf.categories));
+  var catLabels={all:'全部','宽基ETF':'宽基ETF','行业/主题ETF':'行业/主题','跨境ETF':'跨境ETF','商品ETF':'商品ETF'};
+  h+=`<div class="snav" id="etfsnav">`;
+  cats.forEach(function(c,i){
+    h+=`<div class="snt ${i===0?'on':''}" onclick="swEtfCat('${c}',this)">${catLabels[c]||c}</div>`;
+  });
+  h+=`</div>`;
+
+  cats.forEach(function(c,i){
+    var list;
+    if(c==='all'){ list=etf.all||[]; }
+    else { list=(etf.categories||{})[c]||[]; }
+    h+=`<div id="etfsub-${c}" class="subpage ${i===0?'on':''}">`;
+    h+=`<div class="card"><table>
+      <tr><th>代码</th><th>名称</th><th>跟踪指数</th><th>最新价</th><th>涨跌幅</th><th>趋势评分</th><th>趋势信号</th><th>5日涨跌</th><th>20日涨跌</th><th>RSI(14)</th><th>量比</th><th>操作建议</th></tr>`;
+    list.forEach(function(e){
+      var sc=e.trend_score>=70?'var(--G)':e.trend_score>=55?'var(--A)':e.trend_score>=45?'var(--tx2)':'var(--R)';
+      h+=`<tr>
+        <td style="font-weight:600;font-family:monospace;">${e.code}</td>
+        <td style="font-weight:600;">${e.name}</td>
+        <td style="color:var(--tx2);font-size:12px;">${e.index_name}</td>
+        <td>${e.price}</td>
+        <td style="color:${e.change_pct>0?'var(--R)':e.change_pct<0?'var(--G)':'var(--tx2)'};">${e.change_pct>0?'+':''}${e.change_pct}%</td>
+        <td style="font-weight:700;color:${sc};">${e.trend_score}</td>
+        <td><span class="tag ${sigTag[e.trend_signal]||'tN'}">${sigLabel[e.trend_signal]||e.trend_signal}</span></td>
+        <td style="color:${(e.recent_5d_chg||0)>0?'var(--R)':(e.recent_5d_chg||0)<0?'var(--G)':'var(--tx2)'};">${e.recent_5d_chg!=null?(e.recent_5d_chg>0?'+':'')+e.recent_5d_chg+'%':'—'}</td>
+        <td style="color:${(e.recent_20d_chg||0)>0?'var(--R)':(e.recent_20d_chg||0)<0?'var(--G)':'var(--tx2)'};">${e.recent_20d_chg!=null?(e.recent_20d_chg>0?'+':'')+e.recent_20d_chg+'%':'—'}</td>
+        <td style="color:${(e.rsi_14||50)>70?'var(--R)':(e.rsi_14||50)<30?'var(--G)':'var(--tx2)'};">${e.rsi_14!=null?e.rsi_14:'—'}</td>
+        <td>${e.vol_ratio!=null?e.vol_ratio:'—'}</td>
+        <td style="font-size:12px;color:var(--tx2);max-width:200px;">${e.advice}</td>
+      </tr>`;
+    });
+    h+=`</table></div></div>`;
+  });
+
+  h+=`<div class="card" style="margin-top:12px;"><div class="ct">ETF 投资入门指南</div>
+    <div class="g2">
+      <div class="lblock lbG" style="margin:0;"><div class="lblbl">为什么选择 ETF</div>
+        <div class="lbtx">① 分散风险：一只 ETF 持有一篮子股票，避免单只股票暴雷。② 费率低：管理费通常0.5%/年，远低于主动基金1.5%。③ 透明：持仓公开，每天可见。④ 流动性好：盘中实时交易，不像场外基金只能按收盘价申购赎回。</div></div>
+      <div class="lblock lbA" style="margin:0;"><div class="lblbl">新手建议</div>
+        <div class="lbtx">① 从宽基ETF开始（沪深300/中证500），先熟悉市场节奏。② 行业ETF适合对某个方向有判断时使用，但波动更大。③ 定投策略：每月固定日期买入固定金额，平滑成本。④ 不要追涨杀跌：趋势评分只是参考，结合L0风险等级综合判断。</div></div>
+      <div class="lblock lbB" style="margin:0;"><div class="lblbl">趋势评分说明</div>
+        <div class="lbtx">评分基于均线排列（MA5/10/20/60）和RSI指标综合计算。≥70=看多（均线多头排列），55-69=偏多，45-54=中性，30-44=偏空，<30=看空（均线空头排列）。RSI>70超买注意回调，RSI<30超卖可能反弹。量比>1.5表示近期放量。</div></div>
+      <div class="lblock lbP" style="margin:0;"><div class="lblbl">与六层框架配合</div>
+        <div class="lbtx">ETF 趋势信号应与六层分析框架配合使用：L0绿灯+ETF看多=可入场。L0黄灯+ETF偏多=小仓位试探。L0红灯+任何ETF信号=不入场。行业ETF应与对应L3产业链信号方向一致才更可靠。</div></div>
+    </div>
+  </div>`;
+
+  return h;
+}
+function swEtfCat(name,el){
+  document.querySelectorAll('[id^="etfsub-"]').forEach(function(e){e.classList.remove('on');});
+  document.querySelectorAll('#etfsnav .snt').forEach(function(t){t.classList.remove('on');});
+  var el2=document.getElementById('etfsub-'+name);
+  if(el2) el2.classList.add('on');
+  el.classList.add('on');
+}
+
 // ── 回测页面 ──────────────────────────────────────────────────────────────────
 var BT,bT; // backtest data, bT is trade list
 function pgBacktest(){
@@ -1243,7 +1357,7 @@ function pgMemory(){
 }
 
 // ── 路由 ─────────────────────────────────────────────────────────────────────
-const PAGES={ov:pgOv,trend:pgTrend,l0:pgL0,l1:pgL1,l2:pgL2,l3:pgL3,l4:pgL4,l5:pgL5,logic:pgLogic,backtest:pgBacktest,memory:pgMemory};
+const PAGES={ov:pgOv,trend:pgTrend,l0:pgL0,l1:pgL1,l2:pgL2,l3:pgL3,l4:pgL4,l5:pgL5,logic:pgLogic,backtest:pgBacktest,etf:pgEtf,memory:pgMemory};
 let curPage='ov';
 
 function showPage(name,el){
@@ -1369,7 +1483,90 @@ var DEMO_DATA={
     opportunities:["AI算力链三层共振是最强做多信号","铜库存低位支撑有色金属链","美元走弱利好外资回流"],
     action:"维持观察仓位，等待方向确认后加仓AI算力链",score:55,source:"LLM",timestamp:"示例"},
   summary:{l0_level:"GREEN",l1_score:63,l2_score:61,trend_verdict:"WAIT",trend_direction:"SIDEWAYS",
-    trend_confidence:62,trend_source:"LLM",active_chains:2,go_count:1,wait_count:2,no_count:0,market_env:"SIDEWAYS"}
+    trend_confidence:62,trend_source:"LLM",active_chains:2,go_count:1,wait_count:2,no_count:0,market_env:"SIDEWAYS"},
+  etf:{categories:{
+    "宽基ETF":[
+      {code:"510300",name:"沪深300ETF",category:"宽基ETF",index_name:"沪深300",desc:"A股核心资产基准",price:3.956,change_pct:0.38,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:3.94,ma10:3.92,ma20:3.88,ma60:3.82,trend_signal:"LEAN_BULL",trend_score:65,rsi_14:58.2,vol_ratio:1.12,recent_5d_chg:1.2,recent_20d_chg:3.5,recent_60d_chg:8.2,advice:"偏多震荡，可小仓位布局"},
+      {code:"510500",name:"中证500ETF",category:"宽基ETF",index_name:"中证500",desc:"中盘成长代表",price:5.432,change_pct:-0.52,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:5.45,ma10:5.48,ma20:5.42,ma60:5.35,trend_signal:"NEUTRAL",trend_score:48,rsi_14:45.6,vol_ratio:0.95,recent_5d_chg:-0.8,recent_20d_chg:1.2,recent_60d_chg:4.5,advice:"方向不明，建议观望等待"},
+      {code:"159915",name:"创业板ETF",category:"宽基ETF",index_name:"创业板指",desc:"高成长科技板块",price:2.156,change_pct:1.25,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:2.13,ma10:2.10,ma20:2.06,ma60:2.01,trend_signal:"BULLISH",trend_score:75,rsi_14:62.5,vol_ratio:1.35,recent_5d_chg:2.8,recent_20d_chg:6.2,recent_60d_chg:12.5,advice:"趋势向上，可考虑分批建仓"},
+      {code:"588000",name:"科创50ETF",category:"宽基ETF",index_name:"科创50",desc:"硬科技核心标的",price:0.856,change_pct:0.95,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:0.85,ma10:0.84,ma20:0.82,ma60:0.80,trend_signal:"LEAN_BULL",trend_score:62,rsi_14:55.8,vol_ratio:1.08,recent_5d_chg:1.5,recent_20d_chg:4.2,recent_60d_chg:7.8,advice:"偏多震荡，可小仓位布局"},
+      {code:"512100",name:"中证1000ETF",category:"宽基ETF",index_name:"中证1000",desc:"小盘股代表",price:2.345,change_pct:-0.85,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:2.36,ma10:2.38,ma20:2.35,ma60:2.30,trend_signal:"LEAN_BEAR",trend_score:38,rsi_14:42.1,vol_ratio:0.88,recent_5d_chg:-1.5,recent_20d_chg:-0.5,recent_60d_chg:3.2,advice:"偏弱震荡，暂不介入"},
+      {code:"159919",name:"沪深300ETF(嘉实)",category:"宽基ETF",index_name:"沪深300",desc:"沪深300备选",price:3.948,change_pct:0.35,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:3.93,ma10:3.91,ma20:3.87,ma60:3.81,trend_signal:"LEAN_BULL",trend_score:63,rsi_14:56.8,vol_ratio:1.05,recent_5d_chg:1.0,recent_20d_chg:3.2,recent_60d_chg:7.8,advice:"偏多震荡，可小仓位布局"}
+    ],
+    "行业/主题ETF":[
+      {code:"512480",name:"半导体ETF",category:"行业/主题ETF",index_name:"中华半导体",desc:"国产替代+AI算力",price:1.856,change_pct:2.15,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:1.82,ma10:1.78,ma20:1.72,ma60:1.65,trend_signal:"BULLISH",trend_score:82,rsi_14:68.5,vol_ratio:1.65,recent_5d_chg:4.5,recent_20d_chg:10.2,recent_60d_chg:22.5,advice:"趋势向上，可考虑分批建仓；RSI偏高，注意回调风险"},
+      {code:"515030",name:"新能源车ETF",category:"行业/主题ETF",index_name:"CS新能车",desc:"电动车产业链",price:1.523,change_pct:-1.25,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:1.54,ma10:1.56,ma20:1.55,ma60:1.52,trend_signal:"LEAN_BEAR",trend_score:35,rsi_14:38.2,vol_ratio:0.92,recent_5d_chg:-2.5,recent_20d_chg:-1.8,recent_60d_chg:2.5,advice:"偏弱震荡，暂不介入"},
+      {code:"516160",name:"新能源ETF",category:"行业/主题ETF",index_name:"中证新能源",desc:"风光储一体化",price:0.825,change_pct:-0.95,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:0.83,ma10:0.84,ma20:0.85,ma60:0.88,trend_signal:"BEARISH",trend_score:25,rsi_14:32.5,vol_ratio:0.85,recent_5d_chg:-2.8,recent_20d_chg:-5.2,recent_60d_chg:-8.5,advice:"趋势向下，回避或减仓；RSI超卖，可能存在反弹机会"},
+      {code:"512010",name:"医药ETF",category:"行业/主题ETF",index_name:"中证医药",desc:"创新药+医疗器械",price:0.412,change_pct:0.55,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:0.41,ma10:0.41,ma20:0.40,ma60:0.42,trend_signal:"NEUTRAL",trend_score:50,rsi_14:48.5,vol_ratio:1.02,recent_5d_chg:0.5,recent_20d_chg:1.2,recent_60d_chg:-2.5,advice:"方向不明，建议观望等待"},
+      {code:"159928",name:"消费ETF",category:"行业/主题ETF",index_name:"中证主要消费",desc:"必选消费龙头",price:3.256,change_pct:0.18,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:3.25,ma10:3.24,ma20:3.22,ma60:3.20,trend_signal:"LEAN_BULL",trend_score:58,rsi_14:52.3,vol_ratio:0.98,recent_5d_chg:0.8,recent_20d_chg:2.5,recent_60d_chg:5.2,advice:"偏多震荡，可小仓位布局"},
+      {code:"515880",name:"通信ETF",category:"行业/主题ETF",index_name:"中证全指通信",desc:"5G+光通信",price:1.125,change_pct:1.85,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:1.11,ma10:1.08,ma20:1.05,ma60:1.02,trend_signal:"BULLISH",trend_score:78,rsi_14:65.2,vol_ratio:1.45,recent_5d_chg:3.5,recent_20d_chg:8.5,recent_60d_chg:15.2,advice:"趋势向上，可考虑分批建仓"},
+      {code:"512660",name:"军工ETF",category:"行业/主题ETF",index_name:"中证军工",desc:"国防+商业航天",price:0.956,change_pct:0.65,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:0.95,ma10:0.94,ma20:0.93,ma60:0.92,trend_signal:"LEAN_BULL",trend_score:60,rsi_14:54.5,vol_ratio:1.05,recent_5d_chg:1.2,recent_20d_chg:3.5,recent_60d_chg:6.8,advice:"偏多震荡，可小仓位布局"},
+      {code:"159766",name:"旅游ETF",category:"行业/主题ETF",index_name:"中证旅游",desc:"出行消费复苏",price:1.025,change_pct:-0.45,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:1.03,ma10:1.04,ma20:1.03,ma60:1.02,trend_signal:"NEUTRAL",trend_score:46,rsi_14:47.2,vol_ratio:0.92,recent_5d_chg:-0.5,recent_20d_chg:0.8,recent_60d_chg:2.5,advice:"方向不明，建议观望等待"},
+      {code:"512200",name:"房地产ETF",category:"行业/主题ETF",index_name:"中证房地产",desc:"地产开发+物业",price:0.582,change_pct:-2.15,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:0.59,ma10:0.61,ma20:0.63,ma60:0.68,trend_signal:"BEARISH",trend_score:18,rsi_14:28.5,vol_ratio:1.25,recent_5d_chg:-4.5,recent_20d_chg:-8.2,recent_60d_chg:-15.5,advice:"趋势向下，回避或减仓；RSI超卖，可能存在反弹机会"},
+      {code:"515790",name:"光伏ETF",category:"行业/主题ETF",index_name:"中证光伏产业",desc:"光伏组件+逆变器",price:0.625,change_pct:-1.55,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:0.63,ma10:0.65,ma20:0.67,ma60:0.72,trend_signal:"BEARISH",trend_score:22,rsi_14:30.8,vol_ratio:0.95,recent_5d_chg:-3.2,recent_20d_chg:-7.5,recent_60d_chg:-12.8,advice:"趋势向下，回避或减仓；RSI超卖，可能存在反弹机会"},
+      {code:"159995",name:"芯片ETF",category:"行业/主题ETF",index_name:"国证芯片",desc:"芯片设计+封测",price:1.526,change_pct:1.65,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:1.50,ma10:1.47,ma20:1.42,ma60:1.36,trend_signal:"BULLISH",trend_score:76,rsi_14:64.8,vol_ratio:1.52,recent_5d_chg:3.8,recent_20d_chg:9.2,recent_60d_chg:18.5,advice:"趋势向上，可考虑分批建仓"},
+      {code:"562500",name:"机器人ETF",category:"行业/主题ETF",index_name:"中证机器人",desc:"人形机器人+工业自动化",price:0.856,change_pct:1.05,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:0.85,ma10:0.83,ma20:0.81,ma60:0.78,trend_signal:"LEAN_BULL",trend_score:64,rsi_14:57.2,vol_ratio:1.15,recent_5d_chg:2.0,recent_20d_chg:5.5,recent_60d_chg:10.2,advice:"偏多震荡，可小仓位布局"}
+    ],
+    "跨境ETF":[
+      {code:"513100",name:"纳指ETF",category:"跨境ETF",index_name:"纳斯达克100",desc:"美股科技龙头",price:2.156,change_pct:0.85,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:2.14,ma10:2.12,ma20:2.08,ma60:2.02,trend_signal:"BULLISH",trend_score:72,rsi_14:60.5,vol_ratio:1.08,recent_5d_chg:1.8,recent_20d_chg:4.5,recent_60d_chg:10.2,advice:"趋势向上，可考虑分批建仓"},
+      {code:"513500",name:"标普500ETF",category:"跨境ETF",index_name:"标普500",desc:"美股大盘基准",price:5.235,change_pct:0.42,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:5.22,ma10:5.20,ma20:5.15,ma60:5.08,trend_signal:"LEAN_BULL",trend_score:66,rsi_14:58.2,vol_ratio:1.02,recent_5d_chg:1.0,recent_20d_chg:2.8,recent_60d_chg:7.5,advice:"偏多震荡，可小仓位布局"},
+      {code:"513180",name:"恒生科技ETF",category:"跨境ETF",index_name:"恒生科技",desc:"港股互联网龙头",price:0.526,change_pct:-1.85,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:0.53,ma10:0.55,ma20:0.54,ma60:0.52,trend_signal:"LEAN_BEAR",trend_score:40,rsi_14:42.5,vol_ratio:1.18,recent_5d_chg:-3.2,recent_20d_chg:-1.5,recent_60d_chg:5.2,advice:"偏弱震荡，暂不介入"},
+      {code:"513060",name:"恒生医疗ETF",category:"跨境ETF",index_name:"恒生医疗保健",desc:"港股创新药",price:0.385,change_pct:-0.65,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:0.39,ma10:0.39,ma20:0.38,ma60:0.40,trend_signal:"NEUTRAL",trend_score:47,rsi_14:46.8,vol_ratio:0.95,recent_5d_chg:-0.8,recent_20d_chg:0.5,recent_60d_chg:-3.5,advice:"方向不明，建议观望等待"},
+      {code:"159920",name:"恒生ETF",category:"跨境ETF",index_name:"恒生指数",desc:"港股核心资产",price:1.356,change_pct:-0.95,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:1.37,ma10:1.38,ma20:1.36,ma60:1.34,trend_signal:"NEUTRAL",trend_score:45,rsi_14:44.5,vol_ratio:1.05,recent_5d_chg:-1.5,recent_20d_chg:0.2,recent_60d_chg:3.8,advice:"方向不明，建议观望等待"},
+      {code:"513030",name:"德国ETF",category:"跨境ETF",index_name:"德国DAX",desc:"欧洲工业龙头",price:1.625,change_pct:0.55,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:1.62,ma10:1.61,ma20:1.59,ma60:1.55,trend_signal:"LEAN_BULL",trend_score:61,rsi_14:55.8,vol_ratio:0.98,recent_5d_chg:1.2,recent_20d_chg:3.2,recent_60d_chg:8.5,advice:"偏多震荡，可小仓位布局"},
+      {code:"513520",name:"日经ETF",category:"跨境ETF",index_name:"日经225",desc:"日本股市基准",price:1.756,change_pct:0.35,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:1.75,ma10:1.74,ma20:1.72,ma60:1.68,trend_signal:"LEAN_BULL",trend_score:59,rsi_14:53.5,vol_ratio:0.92,recent_5d_chg:0.8,recent_20d_chg:2.5,recent_60d_chg:6.2,advice:"偏多震荡，可小仓位布局"}
+    ],
+    "商品ETF":[
+      {code:"518880",name:"黄金ETF",category:"商品ETF",index_name:"Au99.99",desc:"避险+抗通胀",price:6.256,change_pct:0.95,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:6.22,ma10:6.18,ma20:6.10,ma60:5.95,trend_signal:"BULLISH",trend_score:80,rsi_14:66.5,vol_ratio:1.22,recent_5d_chg:2.0,recent_20d_chg:5.5,recent_60d_chg:12.8,advice:"趋势向上，可考虑分批建仓"},
+      {code:"518860",name:"黄金基金ETF",category:"商品ETF",index_name:"上海金",desc:"黄金备选",price:1.526,change_pct:0.88,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:1.52,ma10:1.51,ma20:1.49,ma60:1.45,trend_signal:"BULLISH",trend_score:78,rsi_14:64.2,vol_ratio:1.15,recent_5d_chg:1.8,recent_20d_chg:5.0,recent_60d_chg:11.5,advice:"趋势向上，可考虑分批建仓"},
+      {code:"159985",name:"豆粕ETF",category:"商品ETF",index_name:"大商所豆粕",desc:"农产品对冲",price:2.356,change_pct:-0.35,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:2.36,ma10:2.37,ma20:2.35,ma60:2.32,trend_signal:"NEUTRAL",trend_score:49,rsi_14:48.2,vol_ratio:0.95,recent_5d_chg:-0.5,recent_20d_chg:1.2,recent_60d_chg:3.5,advice:"方向不明，建议观望等待"}
+    ]
+  },
+  all:[
+    {code:"510300",name:"沪深300ETF",category:"宽基ETF",index_name:"沪深300",desc:"A股核心资产基准",price:3.956,change_pct:0.38,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:3.94,ma10:3.92,ma20:3.88,ma60:3.82,trend_signal:"LEAN_BULL",trend_score:65,rsi_14:58.2,vol_ratio:1.12,recent_5d_chg:1.2,recent_20d_chg:3.5,recent_60d_chg:8.2,advice:"偏多震荡，可小仓位布局"},
+    {code:"512480",name:"半导体ETF",category:"行业/主题ETF",index_name:"中华半导体",desc:"国产替代+AI算力",price:1.856,change_pct:2.15,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:1.82,ma10:1.78,ma20:1.72,ma60:1.65,trend_signal:"BULLISH",trend_score:82,rsi_14:68.5,vol_ratio:1.65,recent_5d_chg:4.5,recent_20d_chg:10.2,recent_60d_chg:22.5,advice:"趋势向上，可考虑分批建仓；RSI偏高，注意回调风险"},
+    {code:"518880",name:"黄金ETF",category:"商品ETF",index_name:"Au99.99",desc:"避险+抗通胀",price:6.256,change_pct:0.95,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:6.22,ma10:6.18,ma20:6.10,ma60:5.95,trend_signal:"BULLISH",trend_score:80,rsi_14:66.5,vol_ratio:1.22,recent_5d_chg:2.0,recent_20d_chg:5.5,recent_60d_chg:12.8,advice:"趋势向上，可考虑分批建仓"},
+    {code:"159915",name:"创业板ETF",category:"宽基ETF",index_name:"创业板指",desc:"高成长科技板块",price:2.156,change_pct:1.25,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:2.13,ma10:2.10,ma20:2.06,ma60:2.01,trend_signal:"BULLISH",trend_score:75,rsi_14:62.5,vol_ratio:1.35,recent_5d_chg:2.8,recent_20d_chg:6.2,recent_60d_chg:12.5,advice:"趋势向上，可考虑分批建仓"},
+    {code:"513100",name:"纳指ETF",category:"跨境ETF",index_name:"纳斯达克100",desc:"美股科技龙头",price:2.156,change_pct:0.85,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:2.14,ma10:2.12,ma20:2.08,ma60:2.02,trend_signal:"BULLISH",trend_score:72,rsi_14:60.5,vol_ratio:1.08,recent_5d_chg:1.8,recent_20d_chg:4.5,recent_60d_chg:10.2,advice:"趋势向上，可考虑分批建仓"},
+    {code:"515880",name:"通信ETF",category:"行业/主题ETF",index_name:"中证全指通信",desc:"5G+光通信",price:1.125,change_pct:1.85,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:1.11,ma10:1.08,ma20:1.05,ma60:1.02,trend_signal:"BULLISH",trend_score:78,rsi_14:65.2,vol_ratio:1.45,recent_5d_chg:3.5,recent_20d_chg:8.5,recent_60d_chg:15.2,advice:"趋势向上，可考虑分批建仓"},
+    {code:"159995",name:"芯片ETF",category:"行业/主题ETF",index_name:"国证芯片",desc:"芯片设计+封测",price:1.526,change_pct:1.65,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:1.50,ma10:1.47,ma20:1.42,ma60:1.36,trend_signal:"BULLISH",trend_score:76,rsi_14:64.8,vol_ratio:1.52,recent_5d_chg:3.8,recent_20d_chg:9.2,recent_60d_chg:18.5,advice:"趋势向上，可考虑分批建仓"},
+    {code:"518860",name:"黄金基金ETF",category:"商品ETF",index_name:"上海金",desc:"黄金备选",price:1.526,change_pct:0.88,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:1.52,ma10:1.51,ma20:1.49,ma60:1.45,trend_signal:"BULLISH",trend_score:78,rsi_14:64.2,vol_ratio:1.15,recent_5d_chg:1.8,recent_20d_chg:5.0,recent_60d_chg:11.5,advice:"趋势向上，可考虑分批建仓"},
+    {code:"588000",name:"科创50ETF",category:"宽基ETF",index_name:"科创50",desc:"硬科技核心标的",price:0.856,change_pct:0.95,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:0.85,ma10:0.84,ma20:0.82,ma60:0.80,trend_signal:"LEAN_BULL",trend_score:62,rsi_14:55.8,vol_ratio:1.08,recent_5d_chg:1.5,recent_20d_chg:4.2,recent_60d_chg:7.8,advice:"偏多震荡，可小仓位布局"},
+    {code:"512660",name:"军工ETF",category:"行业/主题ETF",index_name:"中证军工",desc:"国防+商业航天",price:0.956,change_pct:0.65,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:0.95,ma10:0.94,ma20:0.93,ma60:0.92,trend_signal:"LEAN_BULL",trend_score:60,rsi_14:54.5,vol_ratio:1.05,recent_5d_chg:1.2,recent_20d_chg:3.5,recent_60d_chg:6.8,advice:"偏多震荡，可小仓位布局"},
+    {code:"513500",name:"标普500ETF",category:"跨境ETF",index_name:"标普500",desc:"美股大盘基准",price:5.235,change_pct:0.42,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:5.22,ma10:5.20,ma20:5.15,ma60:5.08,trend_signal:"LEAN_BULL",trend_score:66,rsi_14:58.2,vol_ratio:1.02,recent_5d_chg:1.0,recent_20d_chg:2.8,recent_60d_chg:7.5,advice:"偏多震荡，可小仓位布局"},
+    {code:"513030",name:"德国ETF",category:"跨境ETF",index_name:"德国DAX",desc:"欧洲工业龙头",price:1.625,change_pct:0.55,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:1.62,ma10:1.61,ma20:1.59,ma60:1.55,trend_signal:"LEAN_BULL",trend_score:61,rsi_14:55.8,vol_ratio:0.98,recent_5d_chg:1.2,recent_20d_chg:3.2,recent_60d_chg:8.5,advice:"偏多震荡，可小仓位布局"},
+    {code:"562500",name:"机器人ETF",category:"行业/主题ETF",index_name:"中证机器人",desc:"人形机器人+工业自动化",price:0.856,change_pct:1.05,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:0.85,ma10:0.83,ma20:0.81,ma60:0.78,trend_signal:"LEAN_BULL",trend_score:64,rsi_14:57.2,vol_ratio:1.15,recent_5d_chg:2.0,recent_20d_chg:5.5,recent_60d_chg:10.2,advice:"偏多震荡，可小仓位布局"},
+    {code:"159928",name:"消费ETF",category:"行业/主题ETF",index_name:"中证主要消费",desc:"必选消费龙头",price:3.256,change_pct:0.18,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:3.25,ma10:3.24,ma20:3.22,ma60:3.20,trend_signal:"LEAN_BULL",trend_score:58,rsi_14:52.3,vol_ratio:0.98,recent_5d_chg:0.8,recent_20d_chg:2.5,recent_60d_chg:5.2,advice:"偏多震荡，可小仓位布局"},
+    {code:"513520",name:"日经ETF",category:"跨境ETF",index_name:"日经225",desc:"日本股市基准",price:1.756,change_pct:0.35,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:1.75,ma10:1.74,ma20:1.72,ma60:1.68,trend_signal:"LEAN_BULL",trend_score:59,rsi_14:53.5,vol_ratio:0.92,recent_5d_chg:0.8,recent_20d_chg:2.5,recent_60d_chg:6.2,advice:"偏多震荡，可小仓位布局"},
+    {code:"159919",name:"沪深300ETF(嘉实)",category:"宽基ETF",index_name:"沪深300",desc:"沪深300备选",price:3.948,change_pct:0.35,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:3.93,ma10:3.91,ma20:3.87,ma60:3.81,trend_signal:"LEAN_BULL",trend_score:63,rsi_14:56.8,vol_ratio:1.05,recent_5d_chg:1.0,recent_20d_chg:3.2,recent_60d_chg:7.8,advice:"偏多震荡，可小仓位布局"},
+    {code:"512010",name:"医药ETF",category:"行业/主题ETF",index_name:"中证医药",desc:"创新药+医疗器械",price:0.412,change_pct:0.55,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:0.41,ma10:0.41,ma20:0.40,ma60:0.42,trend_signal:"NEUTRAL",trend_score:50,rsi_14:48.5,vol_ratio:1.02,recent_5d_chg:0.5,recent_20d_chg:1.2,recent_60d_chg:-2.5,advice:"方向不明，建议观望等待"},
+    {code:"159766",name:"旅游ETF",category:"行业/主题ETF",index_name:"中证旅游",desc:"出行消费复苏",price:1.025,change_pct:-0.45,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:1.03,ma10:1.04,ma20:1.03,ma60:1.02,trend_signal:"NEUTRAL",trend_score:46,rsi_14:47.2,vol_ratio:0.92,recent_5d_chg:-0.5,recent_20d_chg:0.8,recent_60d_chg:2.5,advice:"方向不明，建议观望等待"},
+    {code:"510500",name:"中证500ETF",category:"宽基ETF",index_name:"中证500",desc:"中盘成长代表",price:5.432,change_pct:-0.52,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:5.45,ma10:5.48,ma20:5.42,ma60:5.35,trend_signal:"NEUTRAL",trend_score:48,rsi_14:45.6,vol_ratio:0.95,recent_5d_chg:-0.8,recent_20d_chg:1.2,recent_60d_chg:4.5,advice:"方向不明，建议观望等待"},
+    {code:"159920",name:"恒生ETF",category:"跨境ETF",index_name:"恒生指数",desc:"港股核心资产",price:1.356,change_pct:-0.95,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:1.37,ma10:1.38,ma20:1.36,ma60:1.34,trend_signal:"NEUTRAL",trend_score:45,rsi_14:44.5,vol_ratio:1.05,recent_5d_chg:-1.5,recent_20d_chg:0.2,recent_60d_chg:3.8,advice:"方向不明，建议观望等待"},
+    {code:"513060",name:"恒生医疗ETF",category:"跨境ETF",index_name:"恒生医疗保健",desc:"港股创新药",price:0.385,change_pct:-0.65,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:0.39,ma10:0.39,ma20:0.38,ma60:0.40,trend_signal:"NEUTRAL",trend_score:47,rsi_14:46.8,vol_ratio:0.95,recent_5d_chg:-0.8,recent_20d_chg:0.5,recent_60d_chg:-3.5,advice:"方向不明，建议观望等待"},
+    {code:"159985",name:"豆粕ETF",category:"商品ETF",index_name:"大商所豆粕",desc:"农产品对冲",price:2.356,change_pct:-0.35,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:2.36,ma10:2.37,ma20:2.35,ma60:2.32,trend_signal:"NEUTRAL",trend_score:49,rsi_14:48.2,vol_ratio:0.95,recent_5d_chg:-0.5,recent_20d_chg:1.2,recent_60d_chg:3.5,advice:"方向不明，建议观望等待"},
+    {code:"513180",name:"恒生科技ETF",category:"跨境ETF",index_name:"恒生科技",desc:"港股互联网龙头",price:0.526,change_pct:-1.85,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:0.53,ma10:0.55,ma20:0.54,ma60:0.52,trend_signal:"LEAN_BEAR",trend_score:40,rsi_14:42.5,vol_ratio:1.18,recent_5d_chg:-3.2,recent_20d_chg:-1.5,recent_60d_chg:5.2,advice:"偏弱震荡，暂不介入"},
+    {code:"512100",name:"中证1000ETF",category:"宽基ETF",index_name:"中证1000",desc:"小盘股代表",price:2.345,change_pct:-0.85,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:2.36,ma10:2.38,ma20:2.35,ma60:2.30,trend_signal:"LEAN_BEAR",trend_score:38,rsi_14:42.1,vol_ratio:0.88,recent_5d_chg:-1.5,recent_20d_chg:-0.5,recent_60d_chg:3.2,advice:"偏弱震荡，暂不介入"},
+    {code:"515030",name:"新能源车ETF",category:"行业/主题ETF",index_name:"CS新能车",desc:"电动车产业链",price:1.523,change_pct:-1.25,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:1.54,ma10:1.56,ma20:1.55,ma60:1.52,trend_signal:"LEAN_BEAR",trend_score:35,rsi_14:38.2,vol_ratio:0.92,recent_5d_chg:-2.5,recent_20d_chg:-1.8,recent_60d_chg:2.5,advice:"偏弱震荡，暂不介入"},
+    {code:"516160",name:"新能源ETF",category:"行业/主题ETF",index_name:"中证新能源",desc:"风光储一体化",price:0.825,change_pct:-0.95,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:0.83,ma10:0.84,ma20:0.85,ma60:0.88,trend_signal:"BEARISH",trend_score:25,rsi_14:32.5,vol_ratio:0.85,recent_5d_chg:-2.8,recent_20d_chg:-5.2,recent_60d_chg:-8.5,advice:"趋势向下，回避或减仓；RSI超卖，可能存在反弹机会"},
+    {code:"512200",name:"房地产ETF",category:"行业/主题ETF",index_name:"中证房地产",desc:"地产开发+物业",price:0.582,change_pct:-2.15,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:0.59,ma10:0.61,ma20:0.63,ma60:0.68,trend_signal:"BEARISH",trend_score:18,rsi_14:28.5,vol_ratio:1.25,recent_5d_chg:-4.5,recent_20d_chg:-8.2,recent_60d_chg:-15.5,advice:"趋势向下，回避或减仓；RSI超卖，可能存在反弹机会"},
+    {code:"515790",name:"光伏ETF",category:"行业/主题ETF",index_name:"中证光伏产业",desc:"光伏组件+逆变器",price:0.625,change_pct:-1.55,volume:0,amount:0,turnover_rate:null,pe:null,pb:null,total_mv:null,ma5:0.63,ma10:0.65,ma20:0.67,ma60:0.72,trend_signal:"BEARISH",trend_score:22,rsi_14:30.8,vol_ratio:0.95,recent_5d_chg:-3.2,recent_20d_chg:-7.5,recent_60d_chg:-12.8,advice:"趋势向下，回避或减仓；RSI超卖，可能存在反弹机会"}
+  ],
+  summary:{total:28,bullish_count:8,bearish_count:3,neutral_count:6,
+    top_bullish:[
+      {code:"512480",name:"半导体ETF",category:"行业/主题ETF",index_name:"中华半导体",desc:"国产替代+AI算力",price:1.856,change_pct:2.15,trend_signal:"BULLISH",trend_score:82,rsi_14:68.5,recent_5d_chg:4.5,advice:"趋势向上，可考虑分批建仓；RSI偏高，注意回调风险"},
+      {code:"518880",name:"黄金ETF",category:"商品ETF",index_name:"Au99.99",desc:"避险+抗通胀",price:6.256,change_pct:0.95,trend_signal:"BULLISH",trend_score:80,rsi_14:66.5,recent_5d_chg:2.0,advice:"趋势向上，可考虑分批建仓"},
+      {code:"518860",name:"黄金基金ETF",category:"商品ETF",index_name:"上海金",desc:"黄金备选",price:1.526,change_pct:0.88,trend_signal:"BULLISH",trend_score:78,rsi_14:64.2,recent_5d_chg:1.8,advice:"趋势向上，可考虑分批建仓"},
+      {code:"515880",name:"通信ETF",category:"行业/主题ETF",index_name:"中证全指通信",desc:"5G+光通信",price:1.125,change_pct:1.85,trend_signal:"BULLISH",trend_score:78,rsi_14:65.2,recent_5d_chg:3.5,advice:"趋势向上，可考虑分批建仓"},
+      {code:"159995",name:"芯片ETF",category:"行业/主题ETF",index_name:"国证芯片",desc:"芯片设计+封测",price:1.526,change_pct:1.65,trend_signal:"BULLISH",trend_score:76,rsi_14:64.8,recent_5d_chg:3.8,advice:"趋势向上，可考虑分批建仓"}
+    ],
+    top_bearish:[
+      {code:"512200",name:"房地产ETF",category:"行业/主题ETF",index_name:"中证房地产",desc:"地产开发+物业",price:0.582,change_pct:-2.15,trend_signal:"BEARISH",trend_score:18,rsi_14:28.5,recent_5d_chg:-4.5,advice:"趋势向下，回避或减仓；RSI超卖，可能存在反弹机会"},
+      {code:"515790",name:"光伏ETF",category:"行业/主题ETF",index_name:"中证光伏产业",desc:"光伏组件+逆变器",price:0.625,change_pct:-1.55,trend_signal:"BEARISH",trend_score:22,rsi_14:30.8,recent_5d_chg:-3.2,advice:"趋势向下，回避或减仓；RSI超卖，可能存在反弹机会"},
+      {code:"516160",name:"新能源ETF",category:"行业/主题ETF",index_name:"中证新能源",desc:"风光储一体化",price:0.825,change_pct:-0.95,trend_signal:"BEARISH",trend_score:25,rsi_14:32.5,recent_5d_chg:-2.8,advice:"趋势向下，回避或减仓；RSI超卖，可能存在反弹机会"}
+    ],
+    generated_at:"示例数据"}
+  }
 };
 
 // ── 数据加载（四级回退：HTTP fetch → 内嵌数据 → 内置示例 → 手动选择文件） ─────────
