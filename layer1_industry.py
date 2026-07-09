@@ -33,6 +33,7 @@ class Layer1Result:
     infra: list       = field(default_factory=list)
     electricity: list = field(default_factory=list)
     logistics: list   = field(default_factory=list)
+    mobile: list      = field(default_factory=list)  # 3C/手机销量景气
     alerts: list      = field(default_factory=list)
     score: int        = 50
     timestamp: str    = ""
@@ -136,6 +137,50 @@ _ANALYSIS = {
                  "如果茅台连续3个月下跌，整个白酒板块需要回避。"
                  "关注：是否与PMI下行共振——如果共振，说明是真实经济问题"),
         "NEUTRAL": ("白酒景气度中性，等待节假日消费数据验证（中秋/春节是关键节点）"),
+    },
+    # ─── 牛肉 ───
+    "牛肉景气（福成股份月线）": {
+        "UP": ("福成股份是A股肉牛养殖+屠宰加工龙头，月线上涨说明国内牛肉消费景气。"
+               "牛肉是中高弹性消费品，反映了居民可支配收入预期改善。"
+               "关注：福成股份、天山生物、鹏都农牧"),
+        "DOWN": ("福成下跌反映国内牛肉消费疲软或进口牛肉压制。"
+                 "进口牛肉到岸价持续低于国内成本，养殖端承压。"
+                 "需关注巴西雷亚尔/澳元汇率走向"),
+        "NEUTRAL": ("牛肉需求平稳运行"),
+    },
+    "肉牛养殖（天山生物月线）": {
+        "UP": ("天山生物是国内肉牛育种+养殖标的，月线上涨反映肉牛产业链景气。"
+               "国内肉牛存栏持续低位，进口受限，价格弹性大。"
+               "关注：天山生物、福成股份、鹏都农牧"),
+        "DOWN": ("天山生物下跌可能反映肉牛存栏恢复或进口牛肉冲击。"
+                 "需关注海关牛肉进口量数据"),
+        "NEUTRAL": ("肉牛养殖平稳运行"),
+    },
+    # ─── 海鲜 ───
+    "海鲜水产景气（国联水产月线）": {
+        "UP": ("国联水产是国内水产加工+对虾养殖龙头，月线上涨反映海鲜消费回暖。"
+               "出口+国内餐饮双重驱动。关注：国联水产、好当家、獐子岛"),
+        "DOWN": ("国联水产下跌反映海鲜消费疲软或出口受阻。"
+                 "日本核污水事件后部分出口市场受限。"
+                 "关注：海关水产品出口月报"),
+        "NEUTRAL": ("海鲜需求平稳运行"),
+    },
+    "海参养殖（好当家月线）": {
+        "UP": ("好当家是海参养殖龙头，月线上涨反映高端海鲜消费回暖。"
+               "海参是高端宴请核心菜品，是消费升级的代理。"
+               "关注：好当家、獐子岛、东方海洋"),
+        "DOWN": ("好当家下跌反映高端消费降级或海参供给过剩。"
+                 "海参养殖周期3-4年，存栏量变化对价格影响大"),
+        "NEUTRAL": ("海参需求平稳运行"),
+    },
+    # ─── 中端白酒 ───
+    "次高端白酒（山西汾酒月线）": {
+        "UP": ("山西汾酒是次高端白酒代表（300-800元价格带），月线上涨说明次高端消费扩容。"
+               "汾酒清香型全国化推进，是消费升级代理。"
+               "关注：山西汾酒、舍得酒业、酒鬼酒"),
+        "DOWN": ("汾酒下跌反映次高端白酒景气下行或库存周期下行。"
+                 "次高端白酒对经济周期更敏感——商务宴请减少时最先受冲击"),
+        "NEUTRAL": ("次高端白酒平稳运行"),
     },
     "社零总额": {
         "UP": ("社零增速超预期说明居民消费意愿回暖。深层含义："
@@ -389,8 +434,7 @@ _ANALYSIS = {
         "NEUTRAL": ("BDI平稳，全球贸易处于正常水平"),
     },
     "BCI好望角型船运价指数": {
-        "UP": ("BCI专门追踪铁矿石/煤炭运输（好望角型船只能运这些大宗散货）。"
-               "BCI上涨→铁矿石海运需求旺盛→中国钢厂在大量进口铁矿石→"
+        "UP": ("BCI上涨→铁矿石海运需求旺盛→中国钢厂在大量进口铁矿石→"
                "说明钢厂看好后续钢材需求（在补库存）。"
                "利好：铁矿石企业、航运股。"
                "如果BCI涨但BDI不涨，说明是铁矿石单独拉动，"
@@ -401,6 +445,97 @@ _ANALYSIS = {
                  "关注：如果BCI持续下跌+港口铁矿石库存累积，"
                  "说明铁矿石供过于求，钢厂利润端可能改善（原料降价）"),
         "NEUTRAL": ("BCI平稳，铁矿石海运需求正常"),
+    },
+    # ─── 3C/手机 ───
+    "全国手机月度出货量": {
+        "UP": ("全国手机月度出货量同比上涨——居民消费意愿回暖+换机周期启动。"
+               "这是消费电子最直接的景气指标，比产业链股票月线更可靠。"
+               "深层原因：①换机周期（手机平均使用2.5-3年，2023-2024年延长至3.5年，"
+               "存量换机需求积累；②5G渗透率提升（5G手机占比已超85%）；"
+               "③新兴市场出口拉动（国产手机海外份额持续提升）。"
+               "关注：传音控股（低端机）、闻泰科技（ODM）、立讯精密（高端机代工）"),
+        "DOWN": ("手机出货量同比下降——居民消费降级或换机周期延长。"
+                 "深层原因：①就业压力导致消费力下降；②手机性能过剩，"
+                 "用户不再每1-2年换机（换机周期延长至3-4年）；"
+                 "③高端机创新乏力（iPhone创新放缓，用户缺乏升级动力）。"
+                 "如果手机出货量连续3个月下行+社零下行，消费电子产业链需要回避。"
+                 "关注：是否与PMI新订单下行共振"),
+        "NEUTRAL": ("手机出货量平稳，等待新机发布季催化（9月苹果发布会+Q4国内双11）"),
+    },
+    "全国5G手机出货量占比": {
+        "UP": ("5G手机出货量占比上升→消费升级+运营商5G套餐渗透率提升。"
+               "5G手机渗透率超85%意味着换机升级基本完成，增量空间收窄"),
+        "DOWN": ("5G手机占比下降——4G库存清理或低端4G机需求反弹。"
+                 "通常意味着消费降级，居民不愿意为5G付溢价"),
+        "NEUTRAL": ("5G渗透率稳定，结构升级基本完成"),
+    },
+    "低端机景气（传音控股月线）": {
+        "UP": ("传音控股是非洲/印度低端机之王，月线上涨说明海外新兴市场需求旺盛。"
+               "低端机是消费电子最敏感的先行指标，反映了新兴市场中产消费升级。"
+               "关注：传音控股、闻泰科技（ODM）、卓胜微（射频）"),
+        "DOWN": ("传音下跌说明海外低端市场需求萎缩，可能是新兴市场货币贬值/"
+                 "通胀压力导致购买力下降。低端机需求疲软通常会传导至国内ODM厂商"),
+        "NEUTRAL": ("低端机需求平稳，新兴市场消费力中性"),
+    },
+    "中端机景气（闻泰ODM月线）": {
+        "UP": ("闻泰科技是手机ODM龙头，订单量反映中端机市场（小米/华为/荣耀中端机型）景气。"
+               "中端机放量说明国内消费降级+品牌端竞争格局稳定，是消费电子产业链的健康信号。"
+               "关注：闻泰科技、移远通信、环旭电子"),
+        "DOWN": ("闻泰订单下滑反映中端机市场萎缩——可能是手机库存周期下行、"
+                 "品牌端砍单、或国内消费力疲软。需关注小米/荣耀/OPPO的新机发布节奏"),
+        "NEUTRAL": ("中端机需求平稳运行"),
+    },
+    "高端机景气（立讯精密月线）": {
+        "UP": ("立讯精密是苹果产业链核心标的，月线上涨反映iPhone整机代工订单旺盛。"
+               "高端机放量是消费电子最强的景气信号，意味着苹果新品周期强劲+用户换机意愿提升。"
+               "关注：立讯精密、歌尔股份、蓝思科技、鹏鼎控股等苹果产业链"),
+        "DOWN": ("立讯下跌反映苹果订单疲软或市场对iPhone出货预期下调。"
+                 "高端机需求下降通常领先整个3C产业链景气下行6-12周"),
+        "NEUTRAL": ("高端机需求平稳，等待苹果新品发布催化"),
+    },
+    "iPhone整机代工（立讯精密月线）": {
+        "UP": ("立讯精密代工iPhone份额持续提升，月线上涨说明苹果出货量预期上行。"
+               "立讯从AirPods起家，已切入iPhone组装，是消费电子最强β标的。"
+               "关注：立讯精密+蓝思科技+鹏鼎控股（苹果三剑客）"),
+        "DOWN": ("立讯下跌可能反映iPhone订单被和硕/富士康分流，或苹果整体出货下调。"
+                 "需要交叉验证歌尔/蓝思等链上其他标的走势"),
+        "NEUTRAL": ("立讯横盘，苹果产业链信号中性"),
+    },
+    "AirPods/声学（歌尔股份月线）": {
+        "UP": ("歌尔股份是AirPods核心代工+VR/AR整机厂商，月线上涨说明苹果声学产品需求旺盛。"
+               "AirPods新品发布（每年Q3-Q4）会带动歌尔订单放量。"
+               "关注：歌尔股份+国光电器+共达电声（声学链）"),
+        "DOWN": ("歌尔下跌反映AirPods订单疲软或苹果砍单。"
+                 "2022年歌尔曾因AirPods订单流失暴跌，是消费电子风险事件典型"),
+        "NEUTRAL": ("AirPods需求平稳，等待新品周期"),
+    },
+    "iPhone玻璃盖板（蓝思科技月线）": {
+        "UP": ("蓝思科技是iPhone玻璃盖板核心供应商，月线上涨反映新机盖板订单放量。"
+               "新机前后盖双层玻璃+微晶玻璃升级→蓝思单价提升。"
+               "关注：蓝思科技+长盈精密（结构件双龙头）"),
+        "DOWN": ("蓝思下跌反映iPhone盖板订单疲软或被伯恩光学分流"),
+        "NEUTRAL": ("蓝思横盘，盖板需求中性"),
+    },
+    "iPhone摄像头模组（欧菲光月线）": {
+        "UP": ("欧菲光是iPhone摄像头模组供应商，月线上涨反映摄像头升级需求。"
+               "潜望长焦+大底CIS是iPhone 15 Pro及以上核心卖点，单价提升明显。"
+               "关注：欧菲光+韦尔股份（CIS芯片）"),
+        "DOWN": ("欧菲光下跌可能反映苹果摄像头订单被舜宇光学/立讯分流"),
+        "NEUTRAL": ("摄像头模组需求平稳"),
+    },
+    "iPhone屏幕（京东方A月线）": {
+        "UP": ("京东方A是iPhone OLED屏幕国产替代核心，月线上涨说明苹果屏幕订单转移至国产。"
+               "iPhone 15/16系列已开始采用京东方屏幕，份额持续提升。"
+               "关注：京东方A+TCL科技（屏幕双龙头）"),
+        "DOWN": ("京东方下跌反映iPhone屏幕订单被三星/LG分流，或OLED产能过剩"),
+        "NEUTRAL": ("屏幕需求平稳，等待iPhone新机周期催化"),
+    },
+    "iPhone PCB/FPC（鹏鼎控股月线）": {
+        "UP": ("鹏鼎控股是iPhone FPC/SLP核心供应商，月线上涨反映苹果PCB订单放量。"
+               "SLP（类载板）升级+5G毫米波模组需求→鹏鼎单价提升。"
+               "关注：鹏鼎控股+东山精密（FPC双龙头）"),
+        "DOWN": ("鹏鼎下跌反映iPhone PCB订单分流或苹果砍单"),
+        "NEUTRAL": ("PCB/FPC需求平稳"),
     },
 }
 
@@ -509,23 +644,99 @@ def get_food_data() -> list:
     except Exception:
         pass
 
-    # 5. 白酒：用贵州茅台月线作为行业景气代理
+    # 5. 白酒：用贵州茅台月线作为行业景气代理（新浪源，东方财富常被限流）
     try:
-        df = ak.stock_zh_a_hist(symbol="600519", period="monthly",
-                                start_date="20230101", adjust="qfq")
-        if df is not None and len(df) > 2:
-            df["收盘"] = pd.to_numeric(df["收盘"], errors="coerce")
-            latest = float(df["收盘"].iloc[-1])
-            prev   = float(df["收盘"].iloc[-4]) if len(df) >= 4 else float(df["收盘"].iloc[0])
-            chg    = (latest - prev) / prev * 100
+        price = _monthly_close_price("600519")
+        chg = _monthly_change_pct("600519")
+        if price is not None and chg is not None:
+            sig = "UP" if chg > 5 else ("DOWN" if chg < -5 else "NEUTRAL")
             indicators.append(Indicator(
                 name="中高端白酒景气（茅台月线）",
-                value=round(latest, 2), unit="元",
-                yoy=round(chg, 1), zscore=None,
-                signal="UP" if chg > 5 else ("DOWN" if chg < -5 else "NEUTRAL"),
-                note=_analysis_note("中高端白酒景气（茅台月线）",
-                      "UP" if chg > 5 else ("DOWN" if chg < -5 else "NEUTRAL")),
-                source="A股行情"
+                value=price, unit="元",
+                yoy=chg, zscore=None,
+                signal=sig,
+                note=_analysis_note("中高端白酒景气（茅台月线）", sig),
+                source="新浪财经（A股行情）"
+            ))
+    except Exception:
+        pass
+
+    # 5b. 次高端白酒（山西汾酒月线）
+    try:
+        chg = _monthly_change_pct("600809")
+        if chg is not None:
+            sig = "UP" if chg > 5 else ("DOWN" if chg < -5 else "NEUTRAL")
+            indicators.append(Indicator(
+                name="次高端白酒（山西汾酒月线）",
+                value=chg, unit="%",
+                yoy=chg, zscore=None,
+                signal=sig,
+                note=_analysis_note("次高端白酒（山西汾酒月线）", sig),
+                source="A股月线（景气代理）"
+            ))
+    except Exception:
+        pass
+
+    # 5c. 牛肉产业链（福成股份月线 - 肉牛养殖+屠宰加工龙头）
+    try:
+        chg = _monthly_change_pct("600965")
+        if chg is not None:
+            sig = "UP" if chg > 5 else ("DOWN" if chg < -5 else "NEUTRAL")
+            indicators.append(Indicator(
+                name="牛肉景气（福成股份月线）",
+                value=chg, unit="%",
+                yoy=chg, zscore=None,
+                signal=sig,
+                note=_analysis_note("牛肉景气（福成股份月线）", sig),
+                source="A股月线（景气代理）"
+            ))
+    except Exception:
+        pass
+
+    # 5d. 肉牛养殖（天山生物月线）
+    try:
+        chg = _monthly_change_pct("300313")
+        if chg is not None:
+            sig = "UP" if chg > 5 else ("DOWN" if chg < -5 else "NEUTRAL")
+            indicators.append(Indicator(
+                name="肉牛养殖（天山生物月线）",
+                value=chg, unit="%",
+                yoy=chg, zscore=None,
+                signal=sig,
+                note=_analysis_note("肉牛养殖（天山生物月线）", sig),
+                source="A股月线（景气代理）"
+            ))
+    except Exception:
+        pass
+
+    # 5e. 海鲜水产（国联水产月线）
+    try:
+        chg = _monthly_change_pct("300094")
+        if chg is not None:
+            sig = "UP" if chg > 5 else ("DOWN" if chg < -5 else "NEUTRAL")
+            indicators.append(Indicator(
+                name="海鲜水产景气（国联水产月线）",
+                value=chg, unit="%",
+                yoy=chg, zscore=None,
+                signal=sig,
+                note=_analysis_note("海鲜水产景气（国联水产月线）", sig),
+                source="A股月线（景气代理）"
+            ))
+    except Exception:
+        pass
+
+    # 5f. 海参养殖（好当家月线 - 高端海鲜消费代理）
+    try:
+        chg = _monthly_change_pct("600467")
+        if chg is not None:
+            sig = "UP" if chg > 5 else ("DOWN" if chg < -5 else "NEUTRAL")
+            indicators.append(Indicator(
+                name="海参养殖（好当家月线）",
+                value=chg, unit="%",
+                yoy=chg, zscore=None,
+                signal=sig,
+                note=_analysis_note("海参养殖（好当家月线）", sig),
+                source="A股月线（景气代理）"
             ))
     except Exception:
         pass
@@ -555,14 +766,8 @@ def get_food_data() -> list:
     female_consumption = []
     for code, label in [("603605", "珀莱雅"), ("300896", "爱美客")]:
         try:
-            df = ak.stock_zh_a_hist(symbol=code, period="monthly",
-                                    start_date="20230101", adjust="qfq")
-            if df is not None and len(df) > 2:
-                df["收盘"] = pd.to_numeric(df["收盘"], errors="coerce")
-                series = df["收盘"].dropna()
-                latest = float(series.iloc[-1])
-                prev12 = float(series.iloc[-13]) if len(series) >= 13 else float(series.iloc[0])
-                chg = round((latest - prev12) / prev12 * 100, 1)
+            chg = _monthly_change_pct(code)
+            if chg is not None:
                 female_consumption.append(f"{label}{chg:+.1f}%")
         except Exception:
             pass
@@ -745,6 +950,160 @@ def get_logistics_data() -> list:
             ))
     except Exception:
         pass
+
+    return indicators
+
+
+# ── 3C/手机销量景气 ──────────────────────────────────────────────────────────
+# 说明：akshare 暂无月度全国手机销量分类接口，使用产业链核心 A 股月线作为景气代理。
+# 按价位段（低/中/高）+ 苹果各机型零部件单列，便于结构化分析。
+
+# (code, label, name_template)
+_MOBILE_TICKERS = [
+    # 按价位段
+    ("688036", "传音控股",   "低端机景气（传音控股月线）"),       # 海外低端机之王
+    ("600745", "闻泰科技",   "中端机景气（闻泰ODM月线）"),        # 中端 ODM
+    ("002475", "立讯精密",   "高端机景气（立讯精密月线）"),       # 高端机代工
+    # 苹果各机型零部件
+    ("002475", "立讯精密",   "iPhone整机代工（立讯精密月线）"),   # 整机组装
+    ("002241", "歌尔股份",   "AirPods/声学（歌尔股份月线）"),    # 声学+AirPods
+    ("300433", "蓝思科技",   "iPhone玻璃盖板（蓝思科技月线）"),  # 玻璃盖板
+    ("002456", "欧菲光",     "iPhone摄像头模组（欧菲光月线）"),  # 摄像头模组
+    ("000725", "京东方A",    "iPhone屏幕（京东方A月线）"),       # OLED屏幕
+    ("002938", "鹏鼎控股",   "iPhone PCB/FPC（鹏鼎控股月线）"),  # FPC/SLP
+]
+
+
+def _to_sina_symbol(code: str) -> str:
+    """A 股代码转新浪源格式（sh600519 / sz000001）"""
+    code = str(code).strip()
+    if code.startswith(("6", "9")):    # 沪市主板/科创板（688）
+        return "sh" + code
+    elif code.startswith(("0", "2", "3")):  # 深市主板/创业板/中小板
+        return "sz" + code
+    elif code.startswith(("4", "8")):  # 北交所
+        return "bj" + code
+    return "sh" + code
+
+
+def _monthly_change_pct(code: str) -> Optional[float]:
+    """取个股最近3个月涨跌幅（用新浪源日K线聚合，比东方财富稳定）
+
+    新浪源返回日线，我们取最近60个交易日（约3个月）的涨跌幅。
+    """
+    try:
+        sina_symbol = _to_sina_symbol(code)
+        df = ak.stock_zh_a_daily(symbol=sina_symbol, adjust="qfq")
+        if df is None or len(df) < 2:
+            return None
+        df["close"] = pd.to_numeric(df["close"], errors="coerce")
+        series = df["close"].dropna()
+        if len(series) < 2:
+            return None
+        latest = float(series.iloc[-1])
+        # 取约60个交易日前（约3个月）作为基准
+        idx = max(0, len(series) - 60)
+        prev = float(series.iloc[idx])
+        if prev == 0:
+            return None
+        return round((latest - prev) / prev * 100, 1)
+    except Exception:
+        return None
+
+
+def _monthly_close_price(code: str) -> Optional[float]:
+    """取个股最新收盘价（新浪源）"""
+    try:
+        sina_symbol = _to_sina_symbol(code)
+        df = ak.stock_zh_a_daily(symbol=sina_symbol, adjust="qfq")
+        if df is None or len(df) < 1:
+            return None
+        df["close"] = pd.to_numeric(df["close"], errors="coerce")
+        series = df["close"].dropna()
+        if len(series) < 1:
+            return None
+        return round(float(series.iloc[-1]), 2)
+    except Exception:
+        return None
+
+
+def get_mobile_data() -> list:
+    """3C/手机销量景气分析
+
+    优先采用全国手机月度真实出货量数据（信通院，2012年至今），
+    这是反映居民消费意愿和消费实力的核心指标。
+    再辅以产业链核心股票月线作为各价位段/苹果机型零部件景气代理。
+    """
+    indicators = []
+
+    # === 第一部分：全国手机月度真实出货量（信通院数据）===
+    # 这是核心消费意愿/消费实力指标，比股票月线更可靠
+    try:
+        df = ak.macro_china_mobile_number()
+        if df is not None and len(df) > 0:
+            df = df.dropna(subset=["最新值", "涨跌幅"])
+            if len(df) > 0:
+                latest = df.iloc[-1]
+                value = float(latest["最新值"])        # 单位：万部
+                yoy = float(latest["涨跌幅"])          # 当月同比
+                yoy_3m = float(latest["近3月涨跌幅"])   # 近3月同比
+                yoy_6m = float(latest["近6月涨跌幅"])   # 近6月同比
+                yoy_1y = float(latest["近1年涨跌幅"])   # 近1年同比
+                date_str = str(latest["日期"])[:10]
+
+                # 综合判断信号：当月同比 + 近3月同比 + 近1年同比
+                up_count = sum(1 for x in [yoy, yoy_3m, yoy_1y] if x > 5)
+                down_count = sum(1 for x in [yoy, yoy_3m, yoy_1y] if x < -5)
+                if up_count >= 2:
+                    sig = "UP"
+                elif down_count >= 2:
+                    sig = "DOWN"
+                else:
+                    sig = "NEUTRAL"
+
+                indicators.append(Indicator(
+                    name="全国手机月度出货量",
+                    value=round(value, 1), unit="万部",
+                    yoy=round(yoy, 2), zscore=None,
+                    signal=sig,
+                    note=_analysis_note("全国手机月度出货量", sig)
+                          + f" | {date_str} | 近3月同比{yoy_3m:+.1f}% / 近6月{yoy_6m:+.1f}% / 近1年{yoy_1y:+.1f}%",
+                    source="信通院（中国信息通信研究院）"
+                ))
+
+                # 派生指标：5G手机出货量占比（用近1年涨跌幅作为5G渗透率趋势代理）
+                # 5G渗透率提升 = 消费升级；下降 = 消费降级
+                if yoy_1y is not None:
+                    sig_5g = "UP" if yoy_1y > 10 else ("DOWN" if yoy_1y < -10 else "NEUTRAL")
+                    indicators.append(Indicator(
+                        name="全国5G手机出货量占比",
+                        value=round(yoy_1y, 1), unit="%",
+                        yoy=round(yoy_1y, 1), zscore=None,
+                        signal=sig_5g,
+                        note=_analysis_note("全国5G手机出货量占比", sig_5g)
+                              + " | 用近1年同比作为5G渗透率趋势代理",
+                        source="信通院（5G渗透率代理）"
+                    ))
+    except Exception:
+        pass
+
+    # === 第二部分：产业链核心股票月线（各价位段 + 苹果机型零部件）===
+    for code, label, name_tpl in _MOBILE_TICKERS:
+        try:
+            chg = _monthly_change_pct(code)
+            if chg is None:
+                continue
+            signal = "UP" if chg > 5 else ("DOWN" if chg < -5 else "NEUTRAL")
+            indicators.append(Indicator(
+                name=name_tpl,
+                value=chg, unit="%",
+                yoy=chg, zscore=None,
+                signal=signal,
+                note=_analysis_note(name_tpl, signal),
+                source="A股月线（景气代理）"
+            ))
+        except Exception:
+            continue
 
     return indicators
 
@@ -1009,7 +1368,8 @@ def get_electricity_data() -> list:
 def score_layer1(result: Layer1Result) -> int:
     from strategy_config import L1_BASE_SCORE, L1_SIGNAL_WEIGHT
     all_inds = (result.food + result.bulk + result.macro
-                + result.infra + result.electricity + result.logistics)
+                + result.infra + result.electricity + result.logistics
+                + result.mobile)
     if not all_inds:
         return L1_BASE_SCORE
     up   = sum(1 for i in all_inds if i.signal in ("UP", "ALERT_UP"))
@@ -1027,10 +1387,12 @@ def run_layer1() -> Layer1Result:
     result.infra       = get_infra_data()
     result.electricity = get_electricity_data()
     result.logistics   = get_logistics_data()
+    result.mobile      = get_mobile_data()
 
     # 异动提醒
     all_inds = (result.food + result.bulk + result.macro
-                + result.infra + result.electricity + result.logistics)
+                + result.infra + result.electricity + result.logistics
+                + result.mobile)
     result.alerts = [i for i in all_inds if "ALERT" in i.signal]
     result.score  = score_layer1(result)
 

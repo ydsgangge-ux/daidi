@@ -275,6 +275,40 @@ def build_chain_library() -> List[IndustryChain]:
                           ["000895", "002726"]),
             ],
         ),
+
+        IndustryChain(
+            name="3C/手机产业链",
+            description="苹果新机周期+国内手机销量景气，零部件龙头弹性最大",
+            l1_triggers=["手机", "3C", "电子", "苹果", "消费电子"],
+            l2_triggers=["BULLISH", "NEUTRAL"],
+            nodes=[
+                ChainNode("国际信号源", "苹果新品发布会",
+                          "iPhone/AirPods/Mac新品周期，每年9月与3月双节点", "领先12-20周", []),
+                ChainNode("国际信号源", "台积电先进制程出货",
+                          "A系列芯片节点升级→零部件规格升级机会", "领先8-12周", []),
+                ChainNode("上游", "屏幕面板",
+                          "OLED/LTPO屏幕国产替代加速", "领先4-8周",
+                          ["000725", "002475"]),
+                ChainNode("上游", "摄像头模组/CMOS",
+                          "潜望长焦+大底CIS需求拉动", "领先4-8周",
+                          ["002456", "603501"]),
+                ChainNode("上游", "PCB/FPC",
+                          "SLP/HDI高阶板需求随新机放量", "同步-领先2周",
+                          ["002938", "002384"]),
+                ChainNode("中游", "苹果整机代工/AirPods",
+                          "立讯精密组装+歌尔声学整机代工", "当前热点",
+                          ["002475", "002241"]),
+                ChainNode("中游", "玻璃盖板/结构件",
+                          "蓝思科技+长盈精密 iPhone结构件", "同步",
+                          ["300433", "300115"]),
+                ChainNode("下游", "国内手机品牌/ODM",
+                          "传音控股海外市场份额+闻泰ODM订单", "滞后4-8周",
+                          ["688036", "600745"]),
+                ChainNode("下游配套", "射频/连接器",
+                          "5G射频前端+连接器需求随换机周期", "滞后6-12周",
+                          ["300782", "002138"]),
+            ],
+        ),
     ]
 
 
@@ -324,6 +358,8 @@ CHAIN_USER_PROMPT_TEMPLATE = """## 当前 Layer 1 实业数据信号
 {electricity}
 ### 物流运价
 {logistics}
+### 手机销量
+{mobile}
 
 ## 当前 Layer 2 国际/金融信号
 {intl}
@@ -345,6 +381,8 @@ CHAIN_USER_PROMPT_TEMPLATE = """## 当前 Layer 1 实业数据信号
 {intl_export}
 ### 生猪养殖
 {intl_pig}
+### 3C/手机产业链
+{intl_3c}
 
 ## 可选产业链知识库
 {chains}
@@ -377,6 +415,7 @@ def llm_match_chains(l1_result, l2_result, intl_signals=None) -> Layer3Result:
     infra_str = _fmt_indicators(l1_result.infra)
     elec_str = _fmt_indicators(l1_result.electricity)
     logi_str = _fmt_indicators(l1_result.logistics)
+    mobile_str = _fmt_indicators(getattr(l1_result, 'mobile', []))
     intl_str = _fmt_signals(l2_result.intl)
 
     # ── 国际信号源（外部传入或自行采集） ──
@@ -403,6 +442,7 @@ def llm_match_chains(l1_result, l2_result, intl_signals=None) -> Layer3Result:
     intl_metal = signals_to_text_for_chain(intl_signals, "铜/铝/有色金属链")
     intl_export = signals_to_text_for_chain(intl_signals, "出口制造链")
     intl_pig = signals_to_text_for_chain(intl_signals, "生猪养殖链")
+    intl_3c = signals_to_text_for_chain(intl_signals, "3C/手机产业链")
 
     chains_lib = build_chain_library()
     chains_json = json.dumps(
@@ -413,11 +453,12 @@ def llm_match_chains(l1_result, l2_result, intl_signals=None) -> Layer3Result:
     prompt = CHAIN_USER_PROMPT_TEMPLATE.format(
         food=food_str, bulk=bulk_str, macro=macro_str,
         infra=infra_str, electricity=elec_str, logistics=logi_str,
+        mobile=mobile_str,
         intl=intl_str, intl_ai=intl_ai, intl_semi=intl_semi,
         intl_auto=intl_auto, intl_auto2=intl_auto2,
         intl_aero=intl_aero, intl_sic=intl_sic,
         intl_metal=intl_metal, intl_export=intl_export,
-        intl_pig=intl_pig,
+        intl_pig=intl_pig, intl_3c=intl_3c,
         chains=chains_json,
     )
 
@@ -431,10 +472,12 @@ def llm_match_chains(l1_result, l2_result, intl_signals=None) -> Layer3Result:
     # 解析结果并映射回原始链对象
     chain_map = {c.name: c for c in chains_lib}
     active, inactive = [], []
+    handled = set()
 
     for chain_data in result.get("chains", []):
         name = chain_data.get("name", "")
         if name in chain_map:
+            handled.add(name)
             c = chain_map[name]
             c.signal_strength = int(chain_data.get("strength", 0))
             c.current_node = chain_data.get("current_node", "")
@@ -451,6 +494,17 @@ def llm_match_chains(l1_result, l2_result, intl_signals=None) -> Layer3Result:
                 active.append(c)
             else:
                 inactive.append(c)
+
+    # 补齐知识库中未被 LLM 处理的链——避免"漏链"导致前端显示缺失
+    for name, c in chain_map.items():
+        if name not in handled:
+            c.signal_strength = 0
+            c.current_node = ""
+            c.window = ""
+            c.reasoning = "LLM 未提及，可能无显著信号触发"
+            for node in c.nodes:
+                node.active = False
+            inactive.append(c)
 
     top_nodes = []
     for chain in sorted(active, key=lambda c: c.signal_strength, reverse=True)[:3]:

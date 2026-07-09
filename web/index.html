@@ -462,7 +462,7 @@ function pgL0(){
 function pgL1(){
   const l1=D.layer1;
   const all=Object.values(l1.groups).flat();
-  const gnames={food:'食品板块',bulk:'大宗商品',macro:'宏观货币',infra:'基建需求',electricity:'全国用电量',logistics:'物流运价'};
+  const gnames={food:'食品板块',bulk:'大宗商品',macro:'宏观货币',infra:'基建需求',electricity:'全国用电量',logistics:'物流运价',mobile:'3C/手机销量景气'};
   return`
   <div class="g4" style="margin-bottom:12px;">
     <div class="mc"><div class="ml">综合评分</div><div class="mv" style="color:${sc(l1.score)};">${l1.score}<span style="font-size:12px;font-weight:400;color:var(--tx2);">/100</span></div></div>
@@ -1392,12 +1392,38 @@ var DEMO_DATA={
     {name:"全社会用电量",value:8921,value:"8921 亿千瓦时",unit:"亿千瓦时",yoy:6.8,zscore:2.1,signal:"ALERT_UP",note:"电子行业用电同比+12%，AI算力需求拉动",source:"国家能源局"},
     {name:"LME铜库存",value:128500,unit:"吨",yoy:-18.5,zscore:-2.3,signal:"ALERT_DOWN",note:"库存降至近5年低位，供给偏紧",source:"LME"}],
     groups:{
-      food:[{name:"农产品批发价200指数",value:121.5,unit:"点",yoy:-2.1,zscore:-0.8,signal:"NEUTRAL",note:"季节性回调",source:"农业农村部"},{name:"生猪现货价",value:14.8,unit:"元/公斤",yoy:5.2,zscore:0.6,signal:"UP",note:"产能去化接近尾声",source:"搜猪网"}],
+      food:[
+        {name:"农产品批发价200指数",value:121.5,unit:"点",yoy:-2.1,zscore:-0.8,signal:"NEUTRAL",note:"季节性回调",source:"农业农村部"},
+        {name:"生猪现货价",value:14.8,unit:"元/公斤",yoy:5.2,zscore:0.6,signal:"UP",note:"产能去化接近尾声",source:"搜猪网"},
+        {name:"玉米现货价格",value:2.38,unit:"元/kg",yoy:null,zscore:null,signal:"NEUTRAL",note:"玉米价格稳定，饲料成本端无额外压力",source:"搜猪网"},
+        {name:"大豆现货价格",value:4.62,unit:"元/kg",yoy:null,zscore:null,signal:"NEUTRAL",note:"大豆价格稳定，饲料成本端无额外压力",source:"搜猪网"},
+        {name:"中高端白酒景气（茅台月线）",value:1685.5,unit:"元",yoy:8.5,zscore:null,signal:"UP",note:"茅台股价上涨反映高端消费景气上行。商务宴请需求回暖+居民资产配置偏好提升。茅台是消费板块风向标，茅台涨→五粮液、泸州老窖、山西汾酒等次高端白酒可能跟涨",source:"A股行情"},
+        {name:"次高端白酒（山西汾酒月线）",value:12.3,unit:"%",yoy:12.3,zscore:null,signal:"UP",note:"山西汾酒是次高端白酒代表（300-800元价格带），月线上涨说明次高端消费扩容。汾酒清香型全国化推进，是消费升级代理。关注：山西汾酒、舍得酒业、酒鬼酒",source:"A股月线"},
+        {name:"牛肉景气（福成股份月线）",value:7.8,unit:"%",yoy:7.8,zscore:null,signal:"UP",note:"福成股份是A股肉牛养殖+屠宰加工龙头，月线上涨说明国内牛肉消费景气。牛肉是中高弹性消费品，反映居民可支配收入预期改善。关注：福成股份、天山生物、鹏都农牧",source:"A股月线"},
+        {name:"肉牛养殖（天山生物月线）",value:4.2,unit:"%",yoy:4.2,zscore:null,signal:"NEUTRAL",note:"天山生物是国内肉牛育种+养殖标的。国内肉牛存栏持续低位，进口受限，价格弹性大",source:"A股月线"},
+        {name:"海鲜水产景气（国联水产月线）",value:-6.5,unit:"%",yoy:-6.5,zscore:null,signal:"DOWN",note:"国联水产是国内水产加工+对虾养殖龙头，下跌反映海鲜消费疲软或出口受阻。日本核污水事件后部分出口市场受限",source:"A股月线"},
+        {name:"海参养殖（好当家月线）",value:9.6,unit:"%",yoy:9.6,zscore:null,signal:"UP",note:"好当家是海参养殖龙头，月线上涨反映高端海鲜消费回暖。海参是高端宴请核心菜品，是消费升级的代理",source:"A股月线"},
+        {name:"社零总额",value:41090,unit:"亿元",yoy:4.6,zscore:0.8,signal:"NEUTRAL",note:"社零增速平稳，居民消费意愿中性",source:"国家统计局"},
+        {name:"女性消费景气（化妆品/医美）",value:"珀莱雅+爱美客",unit:"月线同比",yoy:null,zscore:null,signal:"UP",note:"珀莱雅=国货化妆品龙头，爱美客=医美龙头。收入提升最先反映在这些品类",source:"A股行情"}
+      ],
       bulk:[{name:"沪铜主力",value:78500,unit:"元/吨",yoy:12.3,zscore:1.8,signal:"UP",note:"AI算力+新能源需求拉动",source:"上期所"},{name:"螺纹钢主力",value:3650,unit:"元/吨",yoy:-8.2,zscore:-1.2,signal:"DOWN",note:"地产需求疲软",source:"上期所"}],
       macro:[{name:"M2同比",value:7.3,unit:"%",yoy:-1.2,zscore:-0.5,signal:"NEUTRAL",note:"信贷平稳",source:"央行"},{name:"PMI",value:50.1,unit:"点",yoy:0.3,zscore:0.2,signal:"UP",note:"勉强站上荣枯线",source:"统计局"}],
       infra:[{name:"建筑业PMI",value:52.8,unit:"点",yoy:1.5,zscore:0.7,signal:"UP",note:"基建托底",source:"统计局"}],
       electricity:[{name:"全社会用电量",value:8921,unit:"亿千瓦时",yoy:6.8,zscore:2.1,signal:"ALERT_UP",note:"电子行业用电同比+12%，AI算力需求拉动",source:"国家能源局"}],
-      logistics:[{name:"BDI指数",value:1856,unit:"点",yoy:15.2,zscore:1.6,signal:"UP",note:"全球贸易回暖",source:"波罗的海交易所"}]
+      logistics:[{name:"BDI指数",value:1856,unit:"点",yoy:15.2,zscore:1.6,signal:"UP",note:"全球贸易回暖",source:"波罗的海交易所"}],
+      mobile:[
+        {name:"全国手机月度出货量",value:2763.9,unit:"万部",yoy:7.41,zscore:null,signal:"UP",note:"全国手机月度出货量同比上涨——居民消费意愿回暖+换机周期启动。这是消费电子最直接的景气指标，比产业链股票月线更可靠。深层原因：①换机周期（手机平均使用2.5-3年，2023-2024年延长至3.5年，存量换机需求积累）；②5G渗透率提升（5G手机占比已超85%）；③新兴市场出口拉动（国产手机海外份额持续提升）。 | 2026-05-01 | 近3月同比+64.6% / 近6月-8.4% / 近1年+16.5%",source:"信通院（中国信息通信研究院）"},
+        {name:"全国5G手机出货量占比",value:16.5,unit:"%",yoy:16.5,zscore:null,signal:"UP",note:"5G手机出货量占比上升→消费升级+运营商5G套餐渗透率提升。5G手机渗透率超85%意味着换机升级基本完成，增量空间收窄 | 用近1年同比作为5G渗透率趋势代理",source:"信通院（5G渗透率代理）"},
+        {name:"低端机景气（传音控股月线）",value:29.6,unit:"%",yoy:29.6,zscore:null,signal:"UP",note:"传音控股是非洲/印度低端机之王，月线上涨说明海外新兴市场需求旺盛。低端机是消费电子最敏感的先行指标，反映了新兴市场中产消费升级。关注：传音控股、闻泰科技（ODM）、卓胜微（射频）",source:"A股月线"},
+        {name:"中端机景气（闻泰ODM月线）",value:-39.0,unit:"%",yoy:-39.0,zscore:null,signal:"DOWN",note:"闻泰订单下滑反映中端机市场萎缩——可能是手机库存周期下行、品牌端砍单、或国内消费力疲软。",source:"A股月线"},
+        {name:"高端机景气（立讯精密月线）",value:10.0,unit:"%",yoy:10.0,zscore:null,signal:"UP",note:"立讯精密是苹果产业链核心标的，月线上涨反映iPhone整机代工订单旺盛。高端机放量是消费电子最强的景气信号。",source:"A股月线"},
+        {name:"iPhone整机代工（立讯精密月线）",value:10.0,unit:"%",yoy:10.0,zscore:null,signal:"UP",note:"立讯精密代工iPhone份额持续提升，是消费电子最强β标的。关注苹果三剑客：立讯+蓝思+鹏鼎。",source:"A股月线"},
+        {name:"AirPods/声学（歌尔股份月线）",value:-11.4,unit:"%",yoy:-11.4,zscore:null,signal:"DOWN",note:"歌尔下跌反映AirPods订单疲软或苹果砍单。",source:"A股月线"},
+        {name:"iPhone玻璃盖板（蓝思科技月线）",value:58.6,unit:"%",yoy:58.6,zscore:null,signal:"UP",note:"蓝思科技是iPhone玻璃盖板核心供应商，新机前后盖双层玻璃+微晶玻璃升级→单价提升。",source:"A股月线"},
+        {name:"iPhone摄像头模组（欧菲光月线）",value:1.1,unit:"%",yoy:1.1,zscore:null,signal:"NEUTRAL",note:"欧菲光下跌可能反映苹果摄像头订单被舜宇光学/立讯分流。",source:"A股月线"},
+        {name:"iPhone屏幕（京东方A月线）",value:103.8,unit:"%",yoy:103.8,zscore:null,signal:"UP",note:"京东方A是iPhone OLED屏幕国产替代核心，份额持续提升。",source:"A股月线"},
+        {name:"iPhone PCB/FPC（鹏鼎控股月线）",value:66.3,unit:"%",yoy:66.3,zscore:null,signal:"UP",note:"鹏鼎控股是iPhone FPC/SLP核心供应商，SLP升级+5G毫米波模组需求→单价提升。",source:"A股月线"}
+      ]
     },all:[]},
   layer2:{score:61,ts:"示例",divergence:"L1/L2 方向基本一致，实业与金融共振偏多",intl:[
     {name:"美元指数",value:103.2,unit:"点",change:-0.8,direction:"BEARISH",impact:"美元走弱→人民币升值→外资回流A股",source:"东方财富"},
@@ -1419,7 +1445,14 @@ var DEMO_DATA={
               {stage:"下游",name:"新能源整车",detail:"渗透率突破45%",lead:"滞后2-3个月",stocks:["比亚迪","理想汽车"],active:false},
               {stage:"风险",name:"价格战风险",detail:"整车厂持续降价",lead:"同步监控",stocks:[],active:false}]}],
     inactive:[
-    {name:"航空航天材料链",desc:"钛合金→碳纤维→航空发动机→整机制造",strength:28,node:"碳纤维",window:"等待军品订单确认",reasoning:"暂无明显触发信号",nodes:[]}],
+    {name:"航空航天材料链",desc:"钛合金→碳纤维→航空发动机→整机制造",strength:28,node:"碳纤维",window:"等待军品订单确认",reasoning:"暂无明显触发信号",nodes:[]},
+    {name:"3C/手机产业链",desc:"苹果新机周期+国内手机销量景气，零部件龙头弹性最大",strength:35,node:"iPhone整机代工/AirPods",window:"等待9月苹果新品发布会",reasoning:"立讯/歌尔/京东方月线偏强，但未到新品发布催化窗口",nodes:[
+      {stage:"国际信号源",name:"苹果新品发布会",detail:"iPhone/AirPods/Mac新品周期，每年9月与3月双节点",lead:"领先12-20周",stocks:[],active:false},
+      {stage:"上游",name:"屏幕面板",detail:"OLED/LTPO屏幕国产替代加速",lead:"领先4-8周",stocks:["000725","002475"],active:false},
+      {stage:"上游",name:"摄像头模组/CMOS",detail:"潜望长焦+大底CIS需求拉动",lead:"领先4-8周",stocks:["002456","603501"],active:false},
+      {stage:"中游",name:"苹果整机代工/AirPods",detail:"立讯精密组装+歌尔声学整机代工",lead:"当前热点",stocks:["002475","002241"],active:true},
+      {stage:"中游",name:"玻璃盖板/结构件",detail:"蓝思科技+长盈精密 iPhone结构件",lead:"同步",stocks:["300433","300115"],active:false},
+      {stage:"下游",name:"国内手机品牌/ODM",detail:"传音控股海外市场份额+闻泰ODM订单",lead:"滞后4-8周",stocks:["688036","600745"],active:false}]}],
     top_nodes:[{chain:"AI算力链",node:"光模块",strength:82,window:"光模块放量确认期（领先下游3-6个月）",l2_aligned:true,reasoning:"三层信号共振确认"},
               {chain:"新能源车链",node:"动力电池",strength:55,window:"等待政策刺激确认",l2_aligned:true,reasoning:"铜价支撑但未放量"}],
     market_narrative:"当前市场主线：AI算力链景气上行。核心驱动：全球AI资本开支扩张（微软/谷歌/亚马逊合计超2000亿美元），费城半导体指数创历史新高传导至国产替代链。电子行业用电量同比+12%提供实业端验证。铜库存降至5年低位强化上游供给逻辑。需关注风险：大盘单日跌幅超3%触发L0否决，估值泡沫（部分光模块PE>80x）。",

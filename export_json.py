@@ -315,7 +315,7 @@ def run_export(capital: float = 1_000_000,
         _log.exception("ETF 分析失败")
 
     # ── 组装 JSON ─────────────────────────────────────────────────────────
-    all_l1 = (l1.food + l1.bulk + l1.macro + l1.infra + l1.electricity + l1.logistics)
+    all_l1 = (l1.food + l1.bulk + l1.macro + l1.infra + l1.electricity + l1.logistics + l1.mobile)
 
     payload = {
         "meta": {
@@ -347,6 +347,7 @@ def run_export(capital: float = 1_000_000,
                 "infra":       [ind_to_dict(i) for i in l1.infra],
                 "electricity": [ind_to_dict(i) for i in l1.electricity],
                 "logistics":   [ind_to_dict(i) for i in l1.logistics],
+                "mobile":      [ind_to_dict(i) for i in l1.mobile],
             },
             "all": [ind_to_dict(i) for i in all_l1],
         },
