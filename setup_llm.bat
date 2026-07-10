@@ -11,7 +11,7 @@ echo         LLM Configurator
 echo  ================================================
 echo.
 
-::: ── Check Python ──
+::: -- Check Python --
 where python >nul 2>&1
 if %errorlevel% neq 0 (
     where python3 >nul 2>&1
@@ -32,7 +32,7 @@ if %errorlevel% neq 0 (
 
 for /f "tokens=2" %%v in ('%PY% --version 2^>^&1') do echo  [OK] Python %%v
 
-::: ── Install dependencies ──
+::: -- Install dependencies --
 echo  [*] Checking dependencies...
 %PY% -c "import openai" >nul 2>&1
 if %errorlevel% neq 0 (
