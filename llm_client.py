@@ -13,10 +13,10 @@ PROVIDERS = {
     "deepseek": {
         "name": "DeepSeek",
         "base_url": "https://api.deepseek.com",
-        "models": ["deepseek-reasoner", "deepseek-chat"],
+        "models": ["deepseek-v4-pro", "deepseek-v4-flash"],
         "model_labels": {
-            "deepseek-reasoner": "DeepSeek-R1 推理（深度思考）",
-            "deepseek-chat": "DeepSeek-V3 对话（快速便宜）",
+            "deepseek-v4-pro": "DeepSeek-V4-Pro 旗舰（最强推理）",
+            "deepseek-v4-flash": "DeepSeek-V4-Flash 快速（性价比高）",
         },
         "key_prefix": "sk-",
         "help_url": "https://platform.deepseek.com/api_keys",
@@ -24,12 +24,14 @@ PROVIDERS = {
     "openai": {
         "name": "OpenAI",
         "base_url": "https://api.openai.com/v1",
-        "models": ["gpt-4o", "gpt-4o-mini", "o1", "o3-mini"],
+        "models": ["gpt-5.4", "gpt-5.2", "gpt-4.1", "gpt-4.1-mini", "o3", "o4-mini"],
         "model_labels": {
-            "gpt-4o": "GPT-4o",
-            "gpt-4o-mini": "GPT-4o Mini（便宜）",
-            "o1": "O1 推理（深度思考）",
-            "o3-mini": "O3 Mini（推理）",
+            "gpt-5.4": "GPT-5.4 旗舰（最强推理）",
+            "gpt-5.2": "GPT-5.2 高级（推荐）",
+            "gpt-4.1": "GPT-4.1 通用（长上下文）",
+            "gpt-4.1-mini": "GPT-4.1 Mini（快速便宜）",
+            "o3": "O3 推理（深度思考）",
+            "o4-mini": "O4 Mini（推理/性价比）",
         },
         "key_prefix": "sk-",
         "help_url": "https://platform.openai.com/api-keys",
@@ -37,11 +39,11 @@ PROVIDERS = {
     "qwen": {
         "name": "通义千问（阿里）",
         "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        "models": ["qwen-max", "qwen-plus", "qwen-turbo"],
+        "models": ["qwen3.8-max", "qwen3.7-plus", "qwen3.7-flash"],
         "model_labels": {
-            "qwen-max": "通义千问-Max（最强）",
-            "qwen-plus": "通义千问-Plus（均衡）",
-            "qwen-turbo": "通义千问-Turbo（快速）",
+            "qwen3.8-max": "通义千问-Max 3.8（旗舰最强）",
+            "qwen3.7-plus": "通义千问-Plus 3.7（均衡）",
+            "qwen3.7-flash": "通义千问-Flash 3.7（快速便宜）",
         },
         "key_prefix": "sk-",
         "help_url": "https://dashscope.console.aliyun.com/apiKey",
@@ -49,10 +51,11 @@ PROVIDERS = {
     "glm": {
         "name": "智谱 GLM",
         "base_url": "https://open.bigmodel.cn/api/paas/v4",
-        "models": ["glm-4-plus", "glm-4-flash"],
+        "models": ["glm-5.3", "glm-5.2", "glm-4.7-flash"],
         "model_labels": {
-            "glm-4-plus": "GLM-4 Plus（推荐）",
-            "glm-4-flash": "GLM-4 Flash（免费）",
+            "glm-5.3": "GLM-5.3 旗舰（最强编程）",
+            "glm-5.2": "GLM-5.2 高级（推荐）",
+            "glm-4.7-flash": "GLM-4.7 Flash（免费）",
         },
         "key_prefix": "",
         "help_url": "https://open.bigmodel.cn/usercenter/apikeys",
@@ -60,11 +63,11 @@ PROVIDERS = {
     "kimi": {
         "name": "Kimi（月之暗面）",
         "base_url": "https://api.moonshot.cn/v1",
-        "models": ["moonshot-v1-128k", "moonshot-v1-32k", "moonshot-v1-8k"],
+        "models": ["kimi-k3", "kimi-k2.7-code", "kimi-k2.6"],
         "model_labels": {
-            "moonshot-v1-128k": "Kimi 128K（长文本）",
-            "moonshot-v1-32k": "Kimi 32K",
-            "moonshot-v1-8k": "Kimi 8K（快速）",
+            "kimi-k3": "Kimi K3 旗舰（2.8T参数）",
+            "kimi-k2.7-code": "Kimi K2.7 Code（编程专用）",
+            "kimi-k2.6": "Kimi K2.6 通用（多模态）",
         },
         "key_prefix": "sk-",
         "help_url": "https://platform.moonshot.cn/console/api-keys",
@@ -72,13 +75,13 @@ PROVIDERS = {
     "siliconflow": {
         "name": "硅基流动",
         "base_url": "https://api.siliconflow.cn/v1",
-        "models": ["deepseek-ai/DeepSeek-V3", "deepseek-ai/DeepSeek-R1",
-                    "Qwen/Qwen2.5-72B-Instruct", "THUDM/glm-4-9b-chat"],
+        "models": ["deepseek-ai/DeepSeek-V4-Flash", "deepseek-ai/DeepSeek-V4-Pro",
+                    "moonshotai/Kimi-K2.7-Code", "zai-org/GLM-5.2"],
         "model_labels": {
-            "deepseek-ai/DeepSeek-V3": "DeepSeek-V3（硅基）",
-            "deepseek-ai/DeepSeek-R1": "DeepSeek-R1（硅基）",
-            "Qwen/Qwen2.5-72B-Instruct": "Qwen2.5 72B（硅基）",
-            "THUDM/glm-4-9b-chat": "GLM-4 9B（免费）",
+            "deepseek-ai/DeepSeek-V4-Flash": "DeepSeek-V4-Flash（硅基）",
+            "deepseek-ai/DeepSeek-V4-Pro": "DeepSeek-V4-Pro（硅基）",
+            "moonshotai/Kimi-K2.7-Code": "Kimi K2.7 Code（硅基）",
+            "zai-org/GLM-5.2": "GLM-5.2（硅基）",
         },
         "key_prefix": "sk-",
         "help_url": "https://cloud.siliconflow.cn/apiKeys",
@@ -95,7 +98,7 @@ PROVIDERS = {
 
 # ── 配置状态 ─────────────────────────────────────────────────────────────────
 _BASE_URL = "https://api.deepseek.com"
-_MODEL = "deepseek-reasoner"
+_MODEL = "deepseek-v4-flash"
 _API_KEY = ""
 _CONFIG_LOADED = False
 
@@ -255,7 +258,7 @@ def chat(system_prompt: str, user_prompt: str,
             "max_tokens": 4096,
         }
         # 推理模型不支持 temperature 和 json_mode
-        reasoner_models = {"deepseek-reasoner", "o1", "o3-mini"}
+        reasoner_models = {"o3", "o4-mini"}
         if _MODEL not in reasoner_models:
             kwargs["temperature"] = temperature
             if json_mode:

@@ -214,8 +214,8 @@ async function loadProviders() {
     }
     // 内嵌 fallback
     providers = {"deepseek":{"name":"DeepSeek","emoji":"🌊","base_url":"https://api.deepseek.com",
-      "models":["deepseek-reasoner","deepseek-chat"],
-      "model_labels":{"deepseek-reasoner":"DeepSeek-R1 推理（深度思考）","deepseek-chat":"DeepSeek-V3 对话"},
+      "models":["deepseek-v4-pro","deepseek-v4-flash"],
+      "model_labels":{"deepseek-v4-pro":"DeepSeek-V4-Pro 旗舰（最强推理）","deepseek-v4-flash":"DeepSeek-V4-Flash 快速（性价比高）"},
       "key_prefix":"sk-","help_url":"https://platform.deepseek.com/api_keys"}};
     renderBrands();
   }
