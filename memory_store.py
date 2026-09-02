@@ -40,6 +40,22 @@ PREDICTION_COLLECTION = "predictions"          # 预测追踪
 PREDICTION_LEDGER_FILE = "prediction_ledger.json"  # 明文账本（方便查看）
 
 
+def _decision_layers(dec: dict) -> dict:
+    """
+    统一读取决策的层指标：新 schema 为嵌套 layers，历史数据为扁平 l0_pass..l4_score。
+    """
+    layers = dec.get("layers") or {}
+    if layers:
+        return layers
+    return {
+        "l0": dec.get("l0_pass"),
+        "l1": dec.get("l1_pass"),
+        "l2": dec.get("l2_pass"),
+        "l3": dec.get("l3_pass"),
+        "l4": dec.get("l4_score"),
+    }
+
+
 class MemoryStore:
     """
     记忆存储
@@ -115,45 +131,45 @@ class MemoryStore:
         """将分析结果转为可搜索的文本"""
         parts = []
 
-        if "risk" in data:
-            r = data["risk"]
-            parts.append(f"风险等级{r.get('level','N/A')} 评分{r.get('score',0)}")
+        # 风险等级：新 schema 在 layer0，历史数据可能在 risk
+        risk = data.get("layer0") or data.get("risk") or {}
+        if risk:
+            parts.append(f"风险等级{risk.get('level','N/A')} 评分{risk.get('score',0)}")
 
         if "layer1" in data:
             l1 = data["layer1"]
-            trigger = l1.get("triggered_signals", [])
+            trigger = []
+            for a in (l1.get("alerts") or []):
+                if isinstance(a, dict) and a.get("name"):
+                    trigger.append(a["name"])
             if trigger:
                 parts.append(f"实业信号: {'; '.join(trigger[:5])}")
+            else:
+                parts.append(f"实业评分{l1.get('score',0)}")
 
         if "layer2" in data:
             l2 = data["layer2"]
-            parts.append(f"金融评分{l2.get('score',0)} 期货信号{l2.get('signal_count',0)}个")
+            n = len(l2.get("intl") or []) + len(l2.get("futures") or [])
+            parts.append(f"金融评分{l2.get('score',0)} 期货信号{n}个")
 
         if "layer3" in data:
             l3 = data["layer3"]
             if isinstance(l3, dict):
-                for ch in (l3.get("active") or l3.get("chains") or []):
-                    parts.append(f"产业链{ch.get('chain','')} 激活强度{ch.get('strength',0)}")
+                for ch in (l3.get("active") or []):
+                    parts.append(f"产业链{ch.get('name','')} 激活强度{ch.get('strength',0)}")
 
-        if "layer4" in data:
-            l4 = data["layer4"]
-            if isinstance(l4, list):
-                for p in l4:
-                    parts.append(f"个股{p.get('name','')} "
-                                 f"评分{p.get('scores',{}).get('total',0)} "
-                                 f"判定{p.get('verdict','')}")
-            elif isinstance(l4, dict):
-                for p in (l4.get("profiles") or []):
-                    parts.append(f"个股{p.get('name','')} "
-                                 f"评分{p.get('scores',{}).get('total',0)} "
-                                 f"判定{p.get('verdict','')}")
+        # 个股画像：新 schema 下 layer4 是列表
+        profiles = data.get("layer4") or []
+        if isinstance(profiles, dict):
+            profiles = profiles.get("profiles") or []
+        for p in profiles:
+            if not isinstance(p, dict):
+                continue
+            parts.append(f"个股{p.get('name','')} "
+                         f"评分{p.get('scores',{}).get('total',0)} "
+                         f"判定{p.get('verdict','')}")
 
-        if "decisions" in data:
-            decisions = data["decisions"]
-        elif "layer5" in data:
-            decisions = data["layer5"]
-        else:
-            decisions = []
+        decisions = data.get("decisions") or data.get("layer5") or []
         for d in (decisions or []):
             parts.append(f"决策{d.get('name','')} "
                          f"方向{d.get('verdict','')} "
@@ -166,10 +182,11 @@ class MemoryStore:
         """提取元数据字段用于过滤查询"""
         meta = {"date": date}
 
-        # 风险等级
-        if "risk" in data:
-            meta["risk_level"] = data["risk"].get("level", "N/A")
-            meta["risk_score"] = data["risk"].get("score", 0)
+        # 风险等级：新 schema 在 layer0
+        risk = data.get("layer0") or data.get("risk") or {}
+        if risk:
+            meta["risk_level"] = risk.get("level", "N/A")
+            meta["risk_score"] = risk.get("score", 0)
 
         # Layer 1 评分
         if "layer1" in data:
@@ -184,24 +201,19 @@ class MemoryStore:
         if "layer3" in data:
             l3 = data["layer3"]
             if isinstance(l3, dict):
-                for ch in (l3.get("active") or l3.get("chains") or []):
+                for ch in (l3.get("active") or []):
                     if ch.get("active"):
                         active_chains += 1
         meta["active_chains"] = active_chains
 
         # Layer 4 优秀股数
         real_count = 0
-        if "layer4" in data:
-            l4 = data["layer4"]
-            if isinstance(l4, list):
-                profiles_iter = l4
-            elif isinstance(l4, dict):
-                profiles_iter = l4.get("profiles") or []
-            else:
-                profiles_iter = []
-            for p in profiles_iter:
-                if p.get("verdict") == "REAL":
-                    real_count += 1
+        profiles = data.get("layer4") or []
+        if isinstance(profiles, dict):
+            profiles = profiles.get("profiles") or []
+        for p in profiles:
+            if isinstance(p, dict) and p.get("verdict") == "REAL":
+                real_count += 1
         meta["real_stocks"] = real_count
 
         # 决策数
@@ -218,23 +230,20 @@ class MemoryStore:
 
     def _record_stock_trends(self, data: dict, date: str):
         """记录各只股票的评分/仓位变化趋势"""
-        decisions = data.get("decisions") or data.get("layer5") or []
-        if not decisions:
-            return
-
-        for dec in decisions:
+        for dec in (data.get("decisions") or data.get("layer5") or []):
             code = dec.get("code", "")
             name = dec.get("name", "")
             if not code:
                 continue
 
+            lay = _decision_layers(dec)
             trend_text = (
                 f"日期{date} {name}({code}) "
-                f"L0_pass={dec.get('l0_pass')} "
-                f"L1_pass={dec.get('l1_pass')} "
-                f"L2_pass={dec.get('l2_pass')} "
-                f"L3_pass={dec.get('l3_pass')} "
-                f"L4_score={dec.get('l4_score',0)} "
+                f"L0_pass={lay.get('l0')} "
+                f"L1_pass={lay.get('l1')} "
+                f"L2_pass={lay.get('l2')} "
+                f"L3_pass={lay.get('l3')} "
+                f"L4_score={lay.get('l4',0)} "
                 f"仓位={dec.get('position_pct',0)}% "
                 f"方向={dec.get('verdict','')} "
                 f"时序信号={dec.get('timing','')} "
@@ -250,11 +259,11 @@ class MemoryStore:
                     "date": date,
                     "code": code,
                     "name": name,
-                    "l0_pass": int(dec.get("l0_pass", False)),
-                    "l1_pass": int(dec.get("l1_pass", False)),
-                    "l2_pass": int(dec.get("l2_pass", False)),
-                    "l3_pass": int(dec.get("l3_pass", False)),
-                    "l4_score": dec.get("l4_score", 0),
+                    "l0_pass": int(bool(lay.get("l0"))),
+                    "l1_pass": int(bool(lay.get("l1"))),
+                    "l2_pass": int(bool(lay.get("l2"))),
+                    "l3_pass": int(bool(lay.get("l3"))),
+                    "l4_score": lay.get("l4", 0),
                     "position_pct": dec.get("position_pct", 0),
                     "verdict": dec.get("verdict", ""),
                     "pe": dec.get("pe", 0) or 0,
@@ -267,11 +276,12 @@ class MemoryStore:
     def _index_for_similarity_search(self, code: str, name: str,
                                      dec: dict, full_data: dict, date: str):
         """为相似状态搜索建立索引"""
+        lay = _decision_layers(dec)
         state_text = (
-            f"{name}({code}) 风险{full_data.get('risk',{}).get('level','N/A')} "
-            f"L0={dec.get('l0_pass')} L1={dec.get('l1_pass')} "
-            f"L2={dec.get('l2_pass')} L3={dec.get('l3_pass')} "
-            f"L4评分={dec.get('l4_score',0)} 仓位={dec.get('position_pct',0)}% "
+            f"{name}({code}) 风险{full_data.get('layer0', full_data.get('risk', {})).get('level','N/A')} "
+            f"L0={lay.get('l0')} L1={lay.get('l1')} "
+            f"L2={lay.get('l2')} L3={lay.get('l3')} "
+            f"L4评分={lay.get('l4',0)} 仓位={dec.get('position_pct',0)}% "
             f"信号={dec.get('timing','')} 方向={dec.get('verdict','')}"
         )
 

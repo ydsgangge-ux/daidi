@@ -16,8 +16,13 @@ import numpy as np
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict
 from datetime import datetime
-import warnings, time, sys, io
+import warnings, time, sys, io, logging
+from concurrent.futures import ThreadPoolExecutor
 warnings.filterwarnings("ignore")
+
+_log = logging.getLogger(__name__)
+
+from data_cache import load_kline as _load_kline_disk, save_kline as _save_kline_disk
 
 if sys.platform == "win32":
     try:
@@ -94,6 +99,7 @@ class ETFInfo:
     recent_20d_chg: Optional[float] = None
     recent_60d_chg: Optional[float] = None
     advice: str = ""
+    source: str = ""
 
 
 def _safe_float(val, default=0.0):
@@ -110,23 +116,50 @@ def _fetch_etf_spot() -> Optional[pd.DataFrame]:
             df = ak.fund_etf_spot_em()
             if df is not None and len(df) > 0:
                 return df
-        except Exception:
+        except Exception as e:
             if attempt < 2:
                 time.sleep(2)
+            _log.warning(f"ETF实时行情抓取失败（东方财富，第{attempt+1}次）: {e}")
     return None
 
 
-def _fetch_etf_kline(code: str, days: int = 120) -> Optional[pd.DataFrame]:
+def _fetch_etf_kline(code: str, days: int = 120) -> tuple:
+    """获取ETF日K线，返回 (df, source)。优先当日磁盘缓存，东方财富→新浪备用。"""
+    # 当日磁盘缓存（data_cache.load_kline 返回 (source, df)，注意顺序）
+    csource, cdf = _load_kline_disk("etf", code)
+    if cdf is not None:
+        return cdf, (csource or "cache")
+
+    # 方案A: 东方财富（列名为中文：日期/开盘/收盘/成交量...）
     for attempt in range(2):
         try:
             df = ak.fund_etf_hist_em(symbol=code, period="daily",
                                      start_date="20240101", adjust="qfq")
             if df is not None and len(df) > 0:
-                return df
-        except Exception:
+                _save_kline_disk("etf", code, "em", df)
+                return df, "em"
+        except Exception as e:
             if attempt < 1:
                 time.sleep(1)
-    return None
+            _log.warning(f"ETF日K抓取失败（东方财富 {code}，第{attempt+1}次）: {e}")
+
+    # 方案B: 新浪备用源（列名为英文，统一改为中文与东财一致）
+    try:
+        prefix = "sh" if code.startswith("5") else "sz"
+        df = ak.fund_etf_hist_sina(symbol=prefix + code)
+        if df is not None and len(df) > 0:
+            col_map = {"date": "日期", "open": "开盘", "close": "收盘",
+                       "high": "最高", "low": "最低", "volume": "成交量",
+                       "amount": "成交额"}
+            df = df.rename(columns={k: v for k, v in col_map.items() if k in df.columns})
+            if "日期" in df.columns:
+                df = df.sort_values("日期").reset_index(drop=True)
+            _save_kline_disk("etf", code, "sina", df)
+            return df, "sina"
+    except Exception as e:
+        _log.warning(f"ETF日K抓取失败（新浪备用 {code}）: {e}")
+
+    return None, ""
 
 
 def _calc_ma(series: pd.Series, n: int) -> Optional[float]:
@@ -257,7 +290,9 @@ def analyze_etf(code: str, name: str, category: str, index_name: str,
         except Exception:
             pass
 
-    kline_df = _fetch_etf_kline(code)
+    kline_df, kline_source = _fetch_etf_kline(code)
+    if kline_source:
+        etf.source = kline_source
     if kline_df is not None and len(kline_df) > 5:
         try:
             kline_df.columns = [str(c).strip() for c in kline_df.columns]
@@ -282,6 +317,11 @@ def analyze_etf(code: str, name: str, category: str, index_name: str,
 
                 if etf.price == 0 and len(close) > 0:
                     etf.price = round(float(close.iloc[-1]), 4)
+
+                # 东财实时行情不可用时，用日K末两位收盘计算涨跌幅兜底
+                if etf.change_pct == 0 and len(close) >= 2:
+                    etf.change_pct = round(
+                        (float(close.iloc[-1]) / float(close.iloc[-2]) - 1) * 100, 2)
 
                 if len(close) >= 6:
                     etf.recent_5d_chg = round(
@@ -308,19 +348,20 @@ def run_etf_analysis() -> Dict:
     all_etfs: List[ETFInfo] = []
     categories: Dict[str, List[dict]] = {}
 
-    for cat_name, etf_list in ETF_WATCHLIST.items():
-        cat_etfs = []
-        for item in etf_list:
-            print(f"    ↳ {item['name']}({item['code']})...")
-            etf = analyze_etf(
-                code=item["code"], name=item["name"],
-                category=cat_name, index_name=item["index"],
-                desc=item["desc"], spot_df=spot_df
-            )
-            all_etfs.append(etf)
-            cat_etfs.append(_etf_to_dict(etf))
-            time.sleep(0.3)
-        categories[cat_name] = cat_etfs
+    # 并行抓取各ETF日K（相互独立），小并发避免被数据源限流
+    tasks = [(cat, item) for cat, lst in ETF_WATCHLIST.items() for item in lst]
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        results = list(pool.map(
+            lambda t: (t[0], analyze_etf(
+                code=t[1]["code"], name=t[1]["name"], category=t[0],
+                index_name=t[1]["index"], desc=t[1]["desc"], spot_df=spot_df
+            )),
+            tasks
+        ))
+
+    for cat_name, etf in results:
+        all_etfs.append(etf)
+        categories.setdefault(cat_name, []).append(_etf_to_dict(etf))
 
     bullish = [e for e in all_etfs if e.trend_signal in ("BULLISH", "LEAN_BULL")]
     bearish = [e for e in all_etfs if e.trend_signal in ("BEARISH", "LEAN_BEAR")]
@@ -377,4 +418,5 @@ def _etf_to_dict(etf: ETFInfo) -> dict:
         "recent_20d_chg": etf.recent_20d_chg,
         "recent_60d_chg": etf.recent_60d_chg,
         "advice": etf.advice,
+        "source": etf.source,
     }

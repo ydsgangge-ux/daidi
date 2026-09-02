@@ -3,10 +3,13 @@ JSON 导出器
 把六层分析结果序列化成 dashboard.json，供前端面板读取
 用法：python export_json.py  → 生成 web/dashboard.json
 """
-import json, sys, os, io, warnings, traceback, logging
+import json, sys, os, io, socket, warnings, traceback, logging
 import pandas as pd
 from datetime import datetime
 warnings.filterwarnings("ignore")
+
+# 全局网络超时兜底：akshare/新浪等接口偶发阻塞，避免整个链路无限挂起
+socket.setdefaulttimeout(30)
 
 # 初始化日志（异常详情写入日志文件，不输出到终端）
 _log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")

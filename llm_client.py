@@ -240,32 +240,59 @@ def test_connection() -> dict:
 
 def chat(system_prompt: str, user_prompt: str,
          temperature: float = 0.3, json_mode: bool = False) -> Optional[str]:
-    """调用大模型 API"""
+    """调用大模型 API（带当日磁盘缓存，避免同一天重复发起相同请求→省token/费用）"""
     key = _load_api_key()
     if not key:
         return None
 
+    # 当日缓存：相同 model+prompt 直接复用，结果保存供后续复用
     try:
-        client = OpenAI(api_key=key, base_url=_BASE_URL)
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ]
+        from data_cache import load_json as _load_llm_cache, save_json as _save_llm_cache
+        import hashlib
+        cache_key = hashlib.md5(
+            f"{_MODEL}|{temperature}|{system_prompt}|{user_prompt}".encode()
+        ).hexdigest()
+        hit = _load_llm_cache("llm", cache_key)
+        if hit is not None:
+            return hit
+    except Exception:
+        pass
 
-        kwargs = {
-            "model": _MODEL,
-            "messages": messages,
-            "max_tokens": 4096,
-        }
-        # 推理模型不支持 temperature 和 json_mode
-        reasoner_models = {"o3", "o4-mini"}
-        if _MODEL not in reasoner_models:
-            kwargs["temperature"] = temperature
-            if json_mode:
-                kwargs["response_format"] = {"type": "json_object"}
+    try:
+        for attempt in range(3):  # 失败重试，容忍 LLM 偶发空返回/瞬时错误
+            try:
+                client = OpenAI(api_key=key, base_url=_BASE_URL)
+                messages = [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ]
 
-        response = client.chat.completions.create(**kwargs)
-        return response.choices[0].message.content
+                kwargs = {
+                    "model": _MODEL,
+                    "messages": messages,
+                    "max_tokens": 4096,
+                }
+                # 推理模型不支持 temperature 和 json_mode
+                reasoner_models = {"o3", "o4-mini"}
+                if _MODEL not in reasoner_models:
+                    kwargs["temperature"] = temperature
+                    if json_mode:
+                        kwargs["response_format"] = {"type": "json_object"}
+
+                response = client.chat.completions.create(**kwargs)
+                text = (response.choices[0].message.content or "").strip()
+                if text:  # 非空才算成功，空串视为失败触发重试
+                    try:
+                        _save_llm_cache("llm", cache_key, text)
+                    except Exception:
+                        pass
+                    return text
+            except Exception as e:
+                if attempt < 2:
+                    print(f"  [LLM 重试{attempt+2}/3] {e}")
+                else:
+                    print(f"  [LLM ERROR] {e}")
+        return None
 
     except Exception as e:
         print(f"  [LLM ERROR] {e}")
@@ -274,13 +301,19 @@ def chat(system_prompt: str, user_prompt: str,
 
 def chat_json(system_prompt: str, user_prompt: str,
               temperature: float = 0.3) -> Optional[dict]:
-    """调用 LLM 并解析 JSON 响应"""
-    raw = chat(system_prompt, user_prompt, temperature, json_mode=True)
-    if raw is None:
-        return None
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
+    """调用 LLM 并解析 JSON 响应（解析失败自动重试，容忍非JSON/空返回抖动）"""
+    for attempt in range(3):
+        raw = chat(system_prompt, user_prompt, temperature, json_mode=True)
+        if raw is None:
+            if attempt < 2:
+                continue
+            return None
+        # 尝试完整解析
+        if raw.strip().startswith("{"):
+            try:
+                return json.loads(raw)
+            except json.JSONDecodeError:
+                pass
         # 尝试提取 JSON 块
         start = raw.find("{")
         end = raw.rfind("}") + 1
@@ -289,4 +322,6 @@ def chat_json(system_prompt: str, user_prompt: str,
                 return json.loads(raw[start:end])
             except json.JSONDecodeError:
                 pass
-        return None
+        if attempt < 2:
+            continue  # 解析失败视为无效返回，重试
+    return None

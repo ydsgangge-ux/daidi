@@ -265,14 +265,9 @@ def fetch_sox_index() -> Optional[dict]:
 
 
 def llm_extract_signals(news_list: List[dict]) -> List[IntlSourceSignal]:
-    """用 LLM 从新闻文本中提取结构化信号"""
+    """用 LLM 从新闻文本中提取结构化信号（分批调用 + 容错解析）"""
     if not is_available() or not news_list:
         return []
-
-    # 构建新闻文本
-    news_text = ""
-    for i, n in enumerate(news_list[:50]):  # 最多50条，避免token超限
-        news_text += f"\n{i+1}. [{n['date']}] {n['title']}\n   {n['content']}\n"
 
     system_prompt = """你是国际产业链信号分析专家。你的任务是从财经新闻中提取结构化的产业链信号数据。
 
@@ -283,7 +278,11 @@ def llm_extract_signals(news_list: List[dict]) -> List[IntlSourceSignal]:
 
 信号类别只允许以下值：AI算力、半导体材料、新能源车、工业自动化、航空航天、新能源材料SiC、有色金属、港口物流、生猪养殖"""
 
-    user_prompt = f"""以下是最近的产业链相关财经新闻：
+    def build_prompt(chunk: List[dict]) -> str:
+        news_text = ""
+        for i, n in enumerate(chunk):
+            news_text += f"\n{i+1}. [{n['date']}] {n['title']}\n   {n['content']}\n"
+        return f"""以下是最近的产业链相关财经新闻：
 
 {news_text}
 
@@ -303,37 +302,55 @@ def llm_extract_signals(news_list: List[dict]) -> List[IntlSourceSignal]:
 
 注意：
 - 只提取有实际数据支撑的信号，不要编造
-- 最多提取15条最重要的信号
+- 每批最多提取5条最重要的信号
 - 忽略重复的信号，保留信息量最大的
 - 忽略与产业链无关的新闻"""
 
-    print(f"  调用 LLM 从 {len(news_list)} 条新闻中提取信号...")
-    result = chat_json(system_prompt, user_prompt, temperature=0.2)
+    def parse_signals(result: Optional[dict]) -> List[IntlSourceSignal]:
+        if not result or not isinstance(result, dict):
+            return []
+        sigs = []
+        for s in result.get("signals", []):
+            if not isinstance(s, dict):
+                continue
+            category = s.get("category", "") or s.get("cat", "")
+            # 自动关联产业链（支持模糊匹配：LLM返回"AI算力"能匹配"AI算力_国际源"）
+            relevant_chains = []
+            for chain, cats in CHAIN_RELEVANCE.items():
+                cval = category or ""
+                if cval in cats or any(cval in c for c in cats):
+                    relevant_chains.append(chain)
+            sigs.append(IntlSourceSignal(
+                category=category,
+                name=s.get("name", "") or s.get("title", ""),
+                value=s.get("value", "") or s.get("signal_value", ""),
+                direction=s.get("direction", "NEUTRAL") or "NEUTRAL",
+                detail=s.get("detail", "") or s.get("summary", ""),
+                source=s.get("source", "新闻"),
+                date=datetime.now().strftime("%Y-%m-%d"),
+                relevance_chains=relevant_chains,
+            ))
+        return sigs
 
-    if result is None:
-        return []
+    # 分批提取：每批最多8条，降低单次 prompt 长度，避免 LLM 长文退化
+    BATCH = 8
+    all_signals = []
+    seen_key = set()
+    items = news_list[:50]
+    total_batches = (len(items) + BATCH - 1) // BATCH
 
-    signals = []
-    for s in result.get("signals", []):
-        category = s.get("category", "")
-        # 自动关联产业链（支持模糊匹配：LLM返回"AI算力"能匹配"AI算力_国际源"）
-        relevant_chains = []
-        for chain, cats in CHAIN_RELEVANCE.items():
-            if category in cats or any(category in c for c in cats):
-                relevant_chains.append(chain)
+    for bi in range(total_batches):
+        chunk = items[bi * BATCH: (bi + 1) * BATCH]
+        print(f"  调用 LLM 提取信号…（批次{bi+1}/{total_batches}，{len(chunk)}条）")
+        result = chat_json(system_prompt, build_prompt(chunk), temperature=0.2)
+        for sig in parse_signals(result):
+            key = (sig.category, sig.name, sig.value)
+            if key in seen_key:
+                continue
+            seen_key.add(key)
+            all_signals.append(sig)
 
-        signals.append(IntlSourceSignal(
-            category=category,
-            name=s.get("name", ""),
-            value=s.get("value", ""),
-            direction=s.get("direction", "NEUTRAL"),
-            detail=s.get("detail", ""),
-            source=s.get("source", "新闻"),
-            date=datetime.now().strftime("%Y-%m-%d"),
-            relevance_chains=relevant_chains,
-        ))
-
-    return signals
+    return all_signals
 
 
 def run_intl_signals_collection(days: int = 30) -> IntlSignalsResult:

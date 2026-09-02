@@ -8,8 +8,13 @@ import numpy as np
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict
 from datetime import datetime
-import warnings, re, json
+import warnings, re, json, logging
+from concurrent.futures import ThreadPoolExecutor
 warnings.filterwarnings("ignore")
+
+_log = logging.getLogger(__name__)
+
+from data_cache import load_kline as _load_kline_disk, save_kline as _save_kline_disk
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -225,12 +230,18 @@ def fetch_financial_data(code: str) -> dict:
 
 # 东方财富实时行情缓存（stock_zh_a_spot_em 拉取全市场股票，有 PE/PB 列）
 _SPOT_CACHE: Optional[pd.DataFrame] = None
+_SPOT_LOCK = __import__("threading").Lock()
 
 def _pe_pb_from_spot(code: str, result: dict) -> None:
     """从全市场实时行情缓存中补全 PE/PB（实时行情始终优先）"""
     global _SPOT_CACHE
     if _SPOT_CACHE is None:
-        _SPOT_CACHE = ak.stock_zh_a_spot_em()
+        with _SPOT_LOCK:
+            if _SPOT_CACHE is None:
+                try:
+                    _SPOT_CACHE = ak.stock_zh_a_spot_em()
+                except Exception as e:
+                    _log.warning(f"全市场实时行情抓取失败（用于PE/PB补全）: {e}")
     if _SPOT_CACHE is not None and len(_SPOT_CACHE) > 0:
         spot = _SPOT_CACHE[_SPOT_CACHE["代码"] == code]
         if len(spot) > 0:
@@ -254,10 +265,16 @@ def _pe_pb_from_spot(code: str, result: dict) -> None:
 _kline_cache: Dict[str, pd.DataFrame] = {}
 
 def _get_kline_cached(code: str) -> Optional[pd.DataFrame]:
-    """获取个股日线行情（东方财富→腾讯备用，带缓存+重试）"""
+    """获取个股日线行情（东方财富→腾讯备用，带磁盘缓存+重试）"""
     import time
     if code in _kline_cache:
         return _kline_cache[code]
+
+    # 当日磁盘缓存（跨进程复用，避免同一天重复请求→被限流）
+    cdf, _ = _load_kline_disk("stock", code)
+    if cdf is not None:
+        _kline_cache[code] = cdf
+        return cdf
 
     # 方案A: 东方财富（列名为中文：收盘/最高/最低/成交量）
     df = None
@@ -267,11 +284,13 @@ def _get_kline_cached(code: str) -> Optional[pd.DataFrame]:
                                     start_date="20240101", adjust="qfq")
             if df is not None and len(df) > 0:
                 break
-        except Exception:
+        except Exception as e:
+            _log.warning(f"个股日K抓取失败（东方财富 {code}，第{attempt+1}次）: {e}")
             if attempt < 1:
                 time.sleep(2)
 
     # 方案B: 腾讯数据源（列名为英文：close/high/low/volume）
+    src = "em"
     if df is None or len(df) == 0:
         try:
             prefix = "sh" if code.startswith("6") else "sz"
@@ -287,11 +306,16 @@ def _get_kline_cached(code: str) -> Optional[pd.DataFrame]:
                 if "成交量" not in df.columns and "成交额" in df.columns:
                     df["成交量"] = df["成交额"]
                 # 腾讯数据无前复权，用全部数据（已足够计算技术指标）
-        except Exception:
-            pass
+                src = "tx"
+                _log.warning(f"个股日K改用腾讯备用源（{code}）")
+        except Exception as e:
+            _log.warning(f"个股日K抓取失败（腾讯 {code}）: {e}")
 
     if df is not None and len(df) > 0:
         _kline_cache[code] = df
+        _save_kline_disk("stock", code, src, df)
+    else:
+        _log.warning(f"个股日K抓取失败（双源均不可用，{code}）")
     return df
 
 
@@ -443,16 +467,16 @@ def compute_technical_indicators(code: str) -> dict:
 # 深度财务分析：现金流质量 / 研发投入 / 毛利率趋势
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _fetch_with_retry(fetch_fn, retries=2, delay=3):
-    """通用重试包装器"""
+def _fetch_with_retry(fetch_fn, retries=2, delay=3, label=""):
+    """通用重试包装器（失败时记录日志）"""
     import time
     for attempt in range(retries):
         try:
             result = fetch_fn()
             if result is not None:
                 return result
-        except Exception:
-            pass
+        except Exception as e:
+            _log.warning(f"抓取失败{(' ['+label+']') if label else ''}（第{attempt+1}次）: {e}")
         if attempt < retries - 1:
             time.sleep(delay)
     return None
@@ -996,29 +1020,28 @@ def run_layer4(codes: List[str] = None,
     results: List[CompanyProfile] = []
     processed_codes: set = set()
 
+    # ── 0. 并行抓取一批股票的财务数据（网络抓取最耗时，相互独立） ──
+    def _bulk_financials(codes: List[str]) -> Dict[str, dict]:
+        uniq = list(dict.fromkeys(c for c in codes if c))  # 去重保序
+        out: Dict[str, dict] = {}
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            for code, fin in zip(uniq, pool.map(fetch_financial_data, uniq)):
+                out[code] = fin
+        return out
+
     # ── 1. 静态库中的标的（优先级高，有详细 green/red flags）──
     static_codes = codes if codes else list(COMPANY_DB.keys())
-
     if active_chains:
-        # 只取属于激活产业链的静态标的
-        for code in static_codes:
-            if code not in COMPANY_DB:
-                continue
-            if COMPANY_DB[code].get("chain") not in active_chains:
-                continue
-            fin_data = fetch_financial_data(code)
-            p = auto_score_company(code, COMPANY_DB[code], fin_data)
-            results.append(p)
-            processed_codes.add(code)
+        pool_codes = [c for c in static_codes if c in COMPANY_DB
+                      and COMPANY_DB[c].get("chain") in active_chains]
     else:
-        # 无激活链 → 全部静态标的
-        for code in static_codes:
-            if code not in COMPANY_DB:
-                continue
-            fin_data = fetch_financial_data(code)
-            p = auto_score_company(code, COMPANY_DB[code], fin_data)
-            results.append(p)
-            processed_codes.add(code)
+        pool_codes = [c for c in static_codes if c in COMPANY_DB]
+
+    fin_map = _bulk_financials(pool_codes)
+    for code in pool_codes:
+        p = auto_score_company(code, COMPANY_DB[code], fin_map.get(code, {}))
+        results.append(p)
+        processed_codes.add(code)
 
     # ── 2. LLM分析激活产业链头部企业 ──
     if active_chains:
@@ -1026,20 +1049,18 @@ def run_layer4(codes: List[str] = None,
             print(f"    ↳ LLM分析 [{chain_name}] 头部企业...")
             llm_stocks = llm_fetch_chain_stocks(chain_name)
             if llm_stocks:
+                # 并行抓取财务并按需评分
+                new_stocks = [s for s in llm_stocks if s["code"] not in processed_codes]
+                fin_map.update(_bulk_financials([s["code"] for s in new_stocks]))
                 kept = 0
-                for stock in llm_stocks:
-                    code = stock["code"]
-                    if code in processed_codes:
-                        continue
-                    fin_data = fetch_financial_data(code)
+                for stock in new_stocks:
                     p = score_dynamic_company(
-                        code, stock["name"], chain_name, fin_data
-                    )
+                        stock["code"], stock["name"], chain_name,
+                        fin_map.get(stock["code"], {}))
                     if p is not None:
-                        # LLM 分析的标的附带节点信息
                         p.node = stock.get("node", "核心")
                         results.append(p)
-                        processed_codes.add(code)
+                        processed_codes.add(stock["code"])
                         kept += 1
                 print(f"      → LLM识别 {len(llm_stocks)} 只，通过财务筛选 {kept} 只")
             else:
@@ -1049,18 +1070,16 @@ def run_layer4(codes: List[str] = None,
                 if not dyn_stocks:
                     print(f"      → 未找到相关概念板块，跳过")
                     continue
+                new_stocks = [s for s in dyn_stocks if s["code"] not in processed_codes]
+                fin_map.update(_bulk_financials([s["code"] for s in new_stocks]))
                 kept = 0
-                for stock in dyn_stocks:
-                    code = stock["code"]
-                    if code in processed_codes:
-                        continue
-                    fin_data = fetch_financial_data(code)
+                for stock in new_stocks:
                     p = score_dynamic_company(
-                        code, stock["name"], chain_name, fin_data
-                    )
+                        stock["code"], stock["name"], chain_name,
+                        fin_map.get(stock["code"], {}))
                     if p is not None:
                         results.append(p)
-                        processed_codes.add(code)
+                        processed_codes.add(stock["code"])
                         kept += 1
                 print(f"      → 抓取 {len(dyn_stocks)} 只，通过财务筛选 {kept} 只")
 
