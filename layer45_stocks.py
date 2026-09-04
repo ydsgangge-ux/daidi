@@ -271,7 +271,8 @@ def _get_kline_cached(code: str) -> Optional[pd.DataFrame]:
         return _kline_cache[code]
 
     # 当日磁盘缓存（跨进程复用，避免同一天重复请求→被限流）
-    cdf, _ = _load_kline_disk("stock", code)
+    # load_kline 返回 (source, df)，注意解包顺序
+    csource, cdf = _load_kline_disk("stock", code)
     if cdf is not None:
         _kline_cache[code] = cdf
         return cdf
