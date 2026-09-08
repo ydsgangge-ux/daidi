@@ -1,4 +1,5 @@
 @echo off
+setlocal
 chcp 65001 >nul
 set PYTHONUTF8=1
 set PYTHONIOENCODING=utf-8
@@ -11,11 +12,12 @@ echo         LLM Configurator
 echo  ================================================
 echo.
 
-::: ── Check Python ──
+REM -- Check Python ------------------------------------
+set PY=python
 where python >nul 2>&1
-if %errorlevel% neq 0 (
+if "%errorlevel%" neq "0" (
     where python3 >nul 2>&1
-    if %errorlevel% neq 0 (
+    if "%errorlevel%" neq "0" (
         echo  [X] Python not found!
         echo.
         echo  Please install Python 3.9+ first:
@@ -26,21 +28,19 @@ if %errorlevel% neq 0 (
         exit /b 1
     )
     set PY=python3
-) else (
-    set PY=python
 )
 
 for /f "tokens=2" %%v in ('%PY% --version 2^>^&1') do echo  [OK] Python %%v
 
-::: ── Install dependencies ──
+REM -- Install dependencies ----------------------------
 echo  [*] Checking dependencies...
 %PY% -c "import openai" >nul 2>&1
-if %errorlevel% neq 0 (
-    pip install openai -q 2>nul
+if "%errorlevel%" neq "0" (
+    %PY% -m pip install openai -q
 )
 %PY% -c "import flask" >nul 2>&1
-if %errorlevel% neq 0 (
-    pip install flask -q 2>nul
+if "%errorlevel%" neq "0" (
+    %PY% -m pip install flask -q
 )
 
 echo  [OK] Starting configuration page...
@@ -51,3 +51,4 @@ echo.
 
 %PY% setup_llm.py
 pause
+endlocal

@@ -459,10 +459,18 @@ function pgL0(){
 }
 
 // ── L1 ───────────────────────────────────────────────────────────────────────
+function aiCardColor(c){if(!c||!c.trend)return'var(--tx1)';return c.trend==='UP'?'var(--R)':(c.trend==='DOWN'?'var(--G)':'var(--tx1)');}
+function fmtAiChg(v){return v!=null?(v>0?'+'+v+'%':v+'%'):'—';}
+function aiTrendTag(t){if(!t||t==='NEUTRAL')return'<span style="color:var(--tx2);">震荡</span>';return t==='UP'?'<span style="color:var(--R);">上行</span>':'<span style="color:var(--G);">下行</span>';}
+function aiChgColor(v){if(v==null)return'var(--tx2)';return v>0?'var(--R)':(v<0?'var(--G)':'var(--tx2)');}
 function pgL1(){
   const l1=D.layer1;
-  const all=Object.values(l1.groups).flat();
-  const gnames={food:'食品板块',bulk:'大宗商品',macro:'宏观货币',infra:'基建需求',electricity:'全国用电量',logistics:'物流运价',mobile:'3C/手机销量景气'};
+  const gnames={food:'食品板块',bulk:'大宗商品',macro:'宏观货币',infra:'基建需求',electricity:'全国用电量',logistics:'物流运价',mobile:'3C/手机销量景气',ai:'AI算力新实业'};
+  const indGroups=Object.entries(l1.groups||{}).filter(([k])=>k!=='ai');
+  const all=indGroups.map(([,v])=>v).flat();
+  const aiGroup=l1.groups&&l1.groups.ai||{cards:[],indices:[]};
+  const aiCards=Array.isArray(aiGroup)?aiGroup:(aiGroup.cards||[]);
+  const aiIdx=Array.isArray(aiGroup)?[]:(aiGroup.indices||[]);
   return`
   <div class="g4" style="margin-bottom:12px;">
     <div class="mc"><div class="ml">综合评分</div><div class="mv" style="color:${sc(l1.score)};">${l1.score}<span style="font-size:12px;font-weight:400;color:var(--tx2);">/100</span></div></div>
@@ -482,7 +490,7 @@ function pgL1(){
     </div>
   </div>
 
-  ${Object.entries(l1.groups).map(([key,inds])=>`
+  ${indGroups.map(([key,inds])=>`
   <div class="card">
     <div class="ct">${gnames[key]||key}</div>
     <table>
@@ -497,7 +505,38 @@ function pgL1(){
         <td style="color:var(--tx3);font-size:11px;">${i.source}</td>
       </tr>`).join('')}
     </table>
-  </div>`).join('')}`;
+  </div>`).join('')}
+
+  ${(aiCards.length||aiIdx.length)?`
+  <div class="card" style="margin-top:12px;">
+    <div class="ct">AI算力新实业（英伟达/微软/智谱）——算力部署景气代理</div>
+    <div class="lblock lbB" style="margin:0 0 10px 0;"><div class="lblbl">为什么看实时行情</div>
+      <div class="lbtx">上市财报滞后约2个月，看不实时。这些公司才是真正"提供/消耗算力"的新型实业——股价实时波动反映算力需求景气与AI资本开支动向，作为当前算力部署的领先观察。英伟达=算力芯片龙头；微软=OpenAI最大股东(49%)代理；智谱=国内纯AI大模型公司（港股）。</div></div>
+    ${aiIdx.length?`
+    <div class="lblock lbP" style="margin:0 0 10px 0;"><div class="lblbl">普涨 还是 异动？（对照美股大盘基准）</div>
+      <div class="lbtx" style="margin-bottom:6px;">英伟达/微软同为纳指与标普成分，拿指数近1月涨跌对比：AI卡与指数同向=跟随普涨；AI卡走强而指数走平/弱=算力独立异动（资金专奔AI，含金量更高）。智谱为港股，不在纳指/标普内，对比有限。</div>
+      <div class="g2">
+        ${aiIdx.map(b=>`
+        <div style="font-size:12px;line-height:1.7;">${b.name}
+          <span style="font-weight:700;color:var(--tx1);">${b.price!=null?b.price:'—'}</span>
+          <span style="color:var(--tx2);">${b.unit||''}</span>
+          <span style="margin-left:8px;font-weight:600;color:${aiChgColor(b.chg&&b.chg.w20)};">近1月 ${fmtAiChg(b.chg&&b.chg.w20)}</span>
+        </div>`).join('')}
+      </div>
+    </div>`:''}
+    <div class="g2">
+      ${aiCards.map(c=>`
+      <div class="card" style="margin:0;">
+        <div class="ct">${c.name} <span style="font-size:11px;color:var(--tx3);">${c.code} · ${c.market==='US'?'美股':(c.market==='HK'?'港股':'指数')}</span></div>
+        <div style="font-size:26px;font-weight:700;color:${aiCardColor(c)};">${c.price!=null?c.price:'—'}<span style="font-size:12px;color:var(--tx2);font-weight:400;"> ${c.unit||''}</span></div>
+        <div style="font-size:12px;color:var(--tx2);margin:4px 0 8px 0;">
+          近1月 ${fmtAiChg(c.chg&&c.chg.w20)} · 近3月 ${fmtAiChg(c.chg&&c.chg.m60)} · 趋势 ${aiTrendTag(c.trend)}
+        </div>
+        <div style="font-size:12px;color:var(--tx2);">${c.note}</div>
+        ${c.market!=='INDEX'?`<div id="kline-ai-${c.code}" style="width:100%;height:220px;margin-top:8px;"></div>`:''}
+      </div>`).join('')}
+    </div>
+  </div>`:''}`;
 }
 
 // ── L2 ───────────────────────────────────────────────────────────────────────
@@ -1772,6 +1811,11 @@ function renderKlineCharts(){
   });
   (D.layer5||[]).forEach(function(d){
     _renderSingleKline(d.code,d.kline,'kline-'+d.code);
+  });
+  var aiGroup=(D.layer1&&D.layer1.groups&&D.layer1.groups.ai||{cards:[],indices:[]});
+  var aiCards=Array.isArray(aiGroup)?aiGroup:(aiGroup.cards||[]);
+  aiCards.forEach(function(c){
+    if(c.market!=='INDEX') _renderSingleKline(c.code,c.kline,'kline-ai-'+c.code);
   });
 }
 

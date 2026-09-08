@@ -270,7 +270,7 @@ def chat(system_prompt: str, user_prompt: str,
                 kwargs = {
                     "model": _MODEL,
                     "messages": messages,
-                    "max_tokens": 4096,
+                    "max_tokens": 8192,
                 }
                 # 推理模型不支持 temperature 和 json_mode
                 reasoner_models = {"o3", "o4-mini"}

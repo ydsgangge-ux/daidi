@@ -34,6 +34,7 @@ class Layer1Result:
     electricity: list = field(default_factory=list)
     logistics: list   = field(default_factory=list)
     mobile: list      = field(default_factory=list)  # 3C/手机销量景气
+    ai: list          = field(default_factory=list)  # AI算力新实业（NVDA/MSFT/智谱 实时K线）
     alerts: list      = field(default_factory=list)
     score: int        = 50
     timestamp: str    = ""
@@ -794,16 +795,28 @@ def get_food_data() -> list:
 def get_bulk_data() -> list:
     indicators = []
 
-    # 1. 铜价（上期所）
+    def _fnum(df, *cands):
+        """按候选列名顺序取第一个可转数值的标量（兼容中文/英文列名）。"""
+        for c in cands:
+            if c in df.columns:
+                vals = pd.to_numeric(df[c], errors="coerce")
+                vals = vals.dropna()
+                if not vals.empty:
+                    return float(vals.iloc[0])
+        return None
+
+    # 1. 铜价（上期所）——沪铜主力合约
     try:
-        df = ak.futures_zh_realtime(symbol="铜")
+        df = ak.futures_zh_realtime(symbol="沪铜")
         if df is not None and len(df) > 0:
-            price = pd.to_numeric(df["最新价"].iloc[0], errors="coerce")
-            chg   = pd.to_numeric(df["涨跌幅"].iloc[0], errors="coerce")
-            if pd.notna(price):
+            price = _fnum(df, "最新价", "trade")
+            chg   = _fnum(df, "涨跌幅", "changepercent")
+            if price is not None:
+                chg = chg if chg is not None else 0.0
                 copper_signal = "UP" if float(chg) > 1 else ("DOWN" if float(chg) < -1 else "NEUTRAL")
                 indicators.append(Indicator(
-                    yoy=None, zscore=None,
+                    name="沪铜主力合约", value=round(float(price), 0), unit="元/吨",
+                    yoy=round(float(chg), 2), zscore=None,
                     signal=copper_signal,
                     note=_analysis_note("沪铜主力合约", copper_signal),
                     source="上期所"
@@ -815,13 +828,14 @@ def get_bulk_data() -> list:
     try:
         df = ak.futures_zh_realtime(symbol="螺纹钢")
         if df is not None and len(df) > 0:
-            price = pd.to_numeric(df["最新价"].iloc[0], errors="coerce")
-            chg   = pd.to_numeric(df["涨跌幅"].iloc[0], errors="coerce")
-            if pd.notna(price):
+            price = _fnum(df, "最新价", "trade")
+            chg   = _fnum(df, "涨跌幅", "changepercent")
+            if price is not None:
+                chg = chg if chg is not None else 0.0
                 rebar_signal = "UP" if float(chg) > 1 else ("DOWN" if float(chg) < -1 else "NEUTRAL")
                 indicators.append(Indicator(
                     name="螺纹钢主力合约", value=round(float(price), 0), unit="元/吨",
-                    yoy=None, zscore=None,
+                    yoy=round(float(chg), 2), zscore=None,
                     signal=rebar_signal,
                     note=_analysis_note("螺纹钢主力合约", rebar_signal),
                     source="上期所"
@@ -863,13 +877,14 @@ def get_bulk_data() -> list:
     try:
         df = ak.futures_zh_realtime(symbol="黄金")
         if df is not None and len(df) > 0:
-            price = pd.to_numeric(df["最新价"].iloc[0], errors="coerce")
-            chg   = pd.to_numeric(df["涨跌幅"].iloc[0], errors="coerce")
-            if pd.notna(price):
+            price = _fnum(df, "最新价", "trade")
+            chg   = _fnum(df, "涨跌幅", "changepercent")
+            if price is not None:
+                chg = chg if chg is not None else 0.0
                 gold_signal = "UP" if float(chg) > 0.5 else ("DOWN" if float(chg) < -0.5 else "NEUTRAL")
                 indicators.append(Indicator(
                     name="沪金主力合约", value=round(float(price), 2), unit="元/克",
-                    yoy=None, zscore=None,
+                    yoy=round(float(chg), 2), zscore=None,
                     signal=gold_signal,
                     note=_analysis_note("沪金主力合约", gold_signal),
                     source="上期所"
@@ -879,15 +894,16 @@ def get_bulk_data() -> list:
 
     # 5. 铝价（上期所）——新能源车轻量化+电力成本关联
     try:
-        df = ak.futures_zh_realtime(symbol="铝")
+        df = ak.futures_zh_realtime(symbol="沪铝")
         if df is not None and len(df) > 0:
-            price = pd.to_numeric(df["最新价"].iloc[0], errors="coerce")
-            chg   = pd.to_numeric(df["涨跌幅"].iloc[0], errors="coerce")
-            if pd.notna(price):
+            price = _fnum(df, "最新价", "trade")
+            chg   = _fnum(df, "涨跌幅", "changepercent")
+            if price is not None:
+                chg = chg if chg is not None else 0.0
                 alum_signal = "UP" if float(chg) > 1 else ("DOWN" if float(chg) < -1 else "NEUTRAL")
                 indicators.append(Indicator(
                     name="沪铝主力合约", value=round(float(price), 0), unit="元/吨",
-                    yoy=None, zscore=None,
+                    yoy=round(float(chg), 2), zscore=None,
                     signal=alum_signal,
                     note=_analysis_note("沪铝主力合约", alum_signal),
                     source="上期所"
@@ -1363,6 +1379,174 @@ def get_electricity_data() -> list:
     return indicators
 
 
+# ── AI算力新实业（英伟达 / 微软 / 智谱） ──────────────────────────────────
+# 定位：新型实业——真正提供/消耗算力的公司实时行情，作为算力部署景气代理。
+#   英伟达 = 全球算力芯片龙头；微软 = OpenAI 最大股东(49%)代理；
+#   智谱(02513.HK) = 国内相对纯粹的 AI 大模型公司。
+# 逻辑：上市财报太慢（滞后~2月），只看实时价格波动趋势，不追基本面数值。
+
+# 实时行情接口：美股 stock_us_daily / 港股 stock_hk_daily / 指数 index_us_stock_sina
+# 列名统一为 date/open/high/low/close/volume
+
+_AI_WATCHLIST = [
+    {"code": "NVDA",  "name": "英伟达", "market": "US",
+     "unit": "USD", "desc": "全球AI算力芯片龙头"},
+    {"code": "MSFT",  "name": "微软",   "market": "US",
+     "unit": "USD", "desc": "OpenAI最大股东(49%)，算力需求方代理"},
+    {"code": "02513", "name": "智谱",   "market": "HK",
+     "unit": "HKD", "desc": "国内纯AI大模型公司（港股）"},
+]
+
+# 对照基准：判断美股科技是"普涨"还是"算力独立异动"
+_AI_INDICES = [
+    {"symbol": ".IXIC", "name": "纳斯达克", "market": "INDEX",
+     "unit": "点", "desc": "美股科技/算力权重基准"},
+    {"symbol": ".INX",  "name": "标普500", "market": "INDEX",
+     "unit": "点", "desc": "美股大盘基准"},
+]
+
+
+def _ai_index_kline(symbol: str, days: int = 120):
+    """抓取美股指数日K线（index_us_stock_sina），返回 (df, 最新价, 涨跌幅)。"""
+    try:
+        df = ak.index_us_stock_sina(symbol=symbol)
+        if df is None or len(df) == 0:
+            return None, None, {}
+        df = df.rename(columns={"open": "开盘", "high": "最高",
+                                "low": "最低", "close": "收盘",
+                                "volume": "成交量"})
+        df["收盘"] = pd.to_numeric(df["收盘"], errors="coerce")
+        df = df.dropna(subset=["收盘"])
+        if df.empty:
+            return None, None, {}
+        close = df["收盘"]
+        latest = float(close.iloc[-1])
+
+        def _ret(n):
+            if len(close) <= n:
+                return None
+            base = float(close.iloc[-1 - n])
+            if base == 0:
+                return None
+            return round((latest - base) / base * 100, 2)
+
+        chg = {"d1": _ret(1), "w20": _ret(20), "m60": _ret(60)}
+        return df, latest, chg
+    except Exception:
+        return None, None, {}
+
+
+def _ai_kline(code: str, market: str, days: int = 120):
+    """抓取AI算力公司日K线，返回 (df, 最新价, 今日&多周期涨跌幅)。列统一中文关键词供前端画图。"""
+    try:
+        if market == "US":
+            df = ak.stock_us_daily(symbol=code)
+        else:  # HK
+            df = ak.stock_hk_daily(symbol=code)
+        if df is None or len(df) == 0:
+            return None, None, {}
+        df = df.rename(columns={"open": "开盘", "high": "最高",
+                                "low": "最低", "close": "收盘",
+                                "volume": "成交量"})
+        df["收盘"] = pd.to_numeric(df["收盘"], errors="coerce")
+        df = df.dropna(subset=["收盘"])
+        if df.empty:
+            return None, None, {}
+        close = df["收盘"]
+        latest = float(close.iloc[-1])
+
+        def _ret(n):
+            if len(close) <= n:
+                return None
+            base = float(close.iloc[-1 - n])
+            if base == 0:
+                return None
+            return round((latest - base) / base * 100, 2)
+
+        chg = {"d1": _ret(1), "w20": _ret(20), "m60": _ret(60), "m120": _ret(120)}
+        return df, latest, chg
+    except Exception:
+        return None, None, {}
+
+
+def _ai_trend(chg: dict) -> str:
+    """根据近1月/近3月动量给出趋势方向（UP/DOWN/NEUTRAL）"""
+    m1 = chg.get("w20")
+    m3 = chg.get("m60")
+    if m1 is None and m3 is None:
+        return "NEUTRAL"
+    ups = sum(1 for v in (m1, m3) if v is not None and v > 3)
+    dns = sum(1 for v in (m1, m3) if v is not None and v < -3)
+    if ups >= 1 and dns == 0:
+        return "UP"
+    if dns >= 1 and ups == 0:
+        return "DOWN"
+    return "NEUTRAL"
+
+
+def _ai_note(item: dict, trend: str) -> str:
+    base = item["desc"]
+    if trend == "UP":
+        return f"{base}。股价上涨，反映算力需求景气/AI资本开支扩张，资金正涌入算力。"
+    if trend == "DOWN":
+        return f"{base}。股价下跌，反映算力需求转弱或市场担忧AI资本开支见顶。"
+    return f"{base}。股价震荡，算力景气方向待确认，等待放量方向选择。"
+
+
+def get_ai_compute_data() -> dict:
+    """AI算力新实业实时行情卡（含K线，供L1底部展示）。
+
+    返回 { "cards": [...], "indices": [...] }：
+      cards   = 英伟达/微软/智谱 个股实时卡
+      indices = 纳指/标普 对照基准（判断普涨 vs 异动）
+    """
+    cards = []
+    for item in _AI_WATCHLIST:
+        df, latest, chg = _ai_kline(item["code"], item["market"])
+        if latest is None:
+            cards.append({
+                "code": item["code"], "name": item["name"], "market": item["market"],
+                "price": None, "unit": item["unit"], "chg": None,
+                "trend": "NEUTRAL", "note": f"{item['desc']}。行情获取失败。",
+                "source": "新浪", "kline": [],
+            })
+            continue
+        trend = _ai_trend(chg)
+        kline = []
+        if df is not None and len(df) > 0:
+            tail = df.tail(90)
+            for _, r in tail.iterrows():
+                kline.append({
+                    "date": str(r.get("date", "")),
+                    "open": round(float(pd.to_numeric(r.get("开盘", 0), errors="coerce") or 0), 2),
+                    "close": round(float(pd.to_numeric(r.get("收盘", 0), errors="coerce") or 0), 2),
+                    "high": round(float(pd.to_numeric(r.get("最高", 0), errors="coerce") or 0), 2),
+                    "low": round(float(pd.to_numeric(r.get("最低", 0), errors="coerce") or 0), 2),
+                    "volume": round(float(pd.to_numeric(r.get("成交量", 0), errors="coerce") or 0), 0),
+                })
+        cards.append({
+            "code": item["code"], "name": item["name"], "market": item["market"],
+            "price": round(latest, 2), "unit": item["unit"],
+            "chg": chg, "trend": trend,
+            "note": _ai_note(item, trend), "source": "新浪", "kline": kline,
+        })
+
+    # 对照基准（纳指/标普），不带K线（只需当前价+近期涨跌用于普涨/异动判断）
+    indices = []
+    for idx in _AI_INDICES:
+        df, latest, chg = _ai_index_kline(idx["symbol"])
+        if latest is None:
+            indices.append({"symbol": idx["symbol"], "name": idx["name"],
+                            "market": "INDEX", "price": None, "unit": idx["unit"],
+                            "chg": None, "source": "新浪"})
+            continue
+        indices.append({"symbol": idx["symbol"], "name": idx["name"],
+                        "market": "INDEX", "price": round(latest, 2),
+                        "unit": idx["unit"], "chg": chg, "source": "新浪"})
+
+    return {"cards": cards, "indices": indices}
+
+
 # ── 汇总评分 ─────────────────────────────────────────────────────────────────
 
 def score_layer1(result: Layer1Result) -> int:
@@ -1388,6 +1572,7 @@ def run_layer1() -> Layer1Result:
     result.electricity = get_electricity_data()
     result.logistics   = get_logistics_data()
     result.mobile      = get_mobile_data()
+    result.ai          = get_ai_compute_data()
 
     # 异动提醒
     all_inds = (result.food + result.bulk + result.macro

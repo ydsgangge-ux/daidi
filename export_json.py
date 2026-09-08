@@ -351,6 +351,7 @@ def run_export(capital: float = 1_000_000,
                 "electricity": [ind_to_dict(i) for i in l1.electricity],
                 "logistics":   [ind_to_dict(i) for i in l1.logistics],
                 "mobile":      [ind_to_dict(i) for i in l1.mobile],
+                "ai":          (l1.ai if isinstance(l1.ai, dict) else {"cards": l1.ai, "indices": []}),  # AI算力新实业（实时K线卡，非Indicator结构）
             },
             "all": [ind_to_dict(i) for i in all_l1],
         },
