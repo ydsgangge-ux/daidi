@@ -13,8 +13,9 @@ PROVIDERS = {
     "deepseek": {
         "name": "DeepSeek",
         "base_url": "https://api.deepseek.com",
-        "models": ["deepseek-v4-pro", "deepseek-v4-flash"],
+        "models": ["deepseek-flash", "deepseek-v4-pro", "deepseek-v4-flash"],
         "model_labels": {
+            "deepseek-flash": "DeepSeek-Flash 最新（推荐）",
             "deepseek-v4-pro": "DeepSeek-V4-Pro 旗舰（最强推理）",
             "deepseek-v4-flash": "DeepSeek-V4-Flash 快速（性价比高）",
         },
@@ -98,7 +99,7 @@ PROVIDERS = {
 
 # ── 配置状态 ─────────────────────────────────────────────────────────────────
 _BASE_URL = "https://api.deepseek.com"
-_MODEL = "deepseek-v4-flash"
+_MODEL = "deepseek-flash"
 _API_KEY = ""
 _CONFIG_LOADED = False
 
@@ -181,7 +182,11 @@ def save_config(api_key: str = None, base_url: str = None, model: str = None,
         if base_url is None:
             base_url = p["base_url"]
 
-    cfg = {"api_key": api_key or _API_KEY, "base_url": base_url or _BASE_URL,
+    final_key = api_key or _API_KEY
+    if final_key and "****" in final_key:
+        raise ValueError("API Key 不能包含 ****（掩码值），请输入完整真实密钥")
+
+    cfg = {"api_key": final_key, "base_url": base_url or _BASE_URL,
            "model": model or _MODEL}
     if provider:
         cfg["provider"] = provider
@@ -288,6 +293,12 @@ def chat(system_prompt: str, user_prompt: str,
                         pass
                     return text
             except Exception as e:
+                emsg = str(e)
+                status = getattr(e, "status_code", None)
+                # 认证类错误（Key 无效/过期）不重试，直接失败，避免上百次无效请求刷屏
+                if status in (401, 403) or "authentication" in emsg.lower() or "invalid api key" in emsg.lower():
+                    print("  [LLM AUTH ERROR] API Key 无效或未配置，请运行 setup_llm.bat 重新配置")
+                    break
                 if attempt < 2:
                     print(f"  [LLM 重试{attempt+2}/3] {e}")
                 else:

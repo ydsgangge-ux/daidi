@@ -76,7 +76,18 @@ class ConfigHandler(SimpleHTTPRequestHandler):
             provider = data.get("provider", "").strip()
 
             if not api_key:
-                self._json_response({"ok": False, "message": "请输入 API Key"}, 400)
+                # 留空表示"沿用已保存的 Key"，避免把页面上的掩码值当真实 Key 覆盖写入
+                if os.path.exists(CONFIG_PATH):
+                    try:
+                        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+                            api_key = json.load(f).get("api_key", "")
+                    except Exception:
+                        api_key = ""
+                if not api_key:
+                    self._json_response({"ok": False, "message": "请输入 API Key"}, 400)
+                    return
+            if "****" in api_key:
+                self._json_response({"ok": False, "message": "API Key 不能包含 ****（那是掩码值，请输入完整真实密钥）"}, 400)
                 return
             if not base_url:
                 self._json_response({"ok": False, "message": "请填写接口地址"}, 400)
@@ -106,6 +117,9 @@ class ConfigHandler(SimpleHTTPRequestHandler):
 
             if not api_key or not base_url or not model:
                 self._json_response({"ok": False, "message": "请先填写完整配置"}, 400)
+                return
+            if "****" in api_key:
+                self._json_response({"ok": False, "message": "API Key 不能包含 ****（那是掩码值，请输入完整真实密钥）"}, 400)
                 return
 
             try:

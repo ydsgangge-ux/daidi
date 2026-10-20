@@ -32,12 +32,26 @@ echo.
 echo  [*] Installing core dependencies...
 echo.
 python -m pip install --upgrade pip -q
-python -m pip install akshare pandas numpy rich openai -q
+
+REM -- Use mirror index first (faster in CN), fallback through multiple mirrors
+set "DEPS=akshare pandas numpy rich openai"
+set "IDX0=https://pypi.tuna.tsinghua.edu.cn/simple"
+set "IDX1=https://mirrors.aliyun.com/pypi/simple/"
+set "IDX2=https://pypi.mirrors.ustc.edu.cn/simple/"
+
+python -m pip install %DEPS% -q -i %IDX0%
+if "%errorlevel%" neq "0" (
+    echo  [!] Mirror 1 failed, trying Aliyun mirror...
+    python -m pip install %DEPS% -q -i %IDX1%
+)
+if "%errorlevel%" neq "0" (
+    echo  [!] Mirror 2 failed, trying USTC mirror...
+    python -m pip install %DEPS% -q -i %IDX2%
+)
 if "%errorlevel%" neq "0" (
     echo.
-    echo  [!] Some dependencies failed, retrying with mirror...
-    echo.
-    python -m pip install akshare pandas numpy rich openai -q -i https://pypi.tuna.tsinghua.edu.cn/simple
+    echo  [!] All mirrors failed, falling back to official PyPI...
+    python -m pip install %DEPS% -q
 )
 if "%errorlevel%" neq "0" (
     echo.

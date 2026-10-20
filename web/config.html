@@ -214,8 +214,8 @@ async function loadProviders() {
     }
     // 内嵌 fallback
     providers = {"deepseek":{"name":"DeepSeek","emoji":"🌊","base_url":"https://api.deepseek.com",
-      "models":["deepseek-v4-pro","deepseek-v4-flash"],
-      "model_labels":{"deepseek-v4-pro":"DeepSeek-V4-Pro 旗舰（最强推理）","deepseek-v4-flash":"DeepSeek-V4-Flash 快速（性价比高）"},
+      "models":["deepseek-flash","deepseek-v4-pro","deepseek-v4-flash"],
+      "model_labels":{"deepseek-flash":"DeepSeek-Flash 最新（推荐）","deepseek-v4-pro":"DeepSeek-V4-Pro 旗舰（最强推理）","deepseek-v4-flash":"DeepSeek-V4-Flash 快速（性价比高）"},
       "key_prefix":"sk-","help_url":"https://platform.deepseek.com/api_keys"}};
     renderBrands();
   }
@@ -457,10 +457,11 @@ async function loadExisting() {
       currentProvider = cfg.provider;
       currentModel = cfg.model || '';
       selectBrand(cfg.provider);
-      // 恢复 Key
+      // 恢复 Key：只把掩码作为占位提示，不写入输入框，避免被当真实 Key 重新保存
       if (cfg.api_key_masked) {
-        document.getElementById('apiKey').value = cfg.api_key_masked;
-        document.getElementById('apiKey').dataset.realKey = cfg.api_key_masked;
+        const keyEl = document.getElementById('apiKey');
+        keyEl.value = '';
+        keyEl.placeholder = cfg.api_key_masked + '（已保存，留空则不修改）';
       }
       // 恢复模型选中
       if (cfg.model && cfg.provider !== 'custom') {
