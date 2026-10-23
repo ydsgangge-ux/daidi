@@ -27,11 +27,36 @@ if "%errorlevel%" neq "0" (
 
 for /f "tokens=2" %%v in ('python --version 2^>^&1') do echo  [OK] Python %%v
 
-REM -- 2. Install dependencies (core only, chromadb is optional) --------
+REM -- 2. Repair pip if broken (partial upgrade leaves ~ip leftovers) ---
+python -m pip --version >nul 2>&1
+if "%errorlevel%" equ "0" goto PIP_READY
+
+echo.
+echo  [!] pip is broken, repairing with bundled version...
+python -m ensurepip --upgrade >nul 2>&1
+python -m pip --version >nul 2>&1
+if "%errorlevel%" equ "0" goto PIP_READY
+
+echo  [!] Cleaning broken pip leftovers...
+python -c "import shutil,glob,sysconfig;sp=sysconfig.get_paths()['purelib'];paths=glob.glob(sp+'/pip')+glob.glob(sp+'/~ip*')+glob.glob(sp+'/pip-*.dist-info');[shutil.rmtree(p,ignore_errors=True) for p in paths]"
+python -m ensurepip --upgrade >nul 2>&1
+python -m pip --version >nul 2>&1
+if "%errorlevel%" neq "0" (
+    echo.
+    echo  [X] Could not repair pip automatically.
+    echo      Please reinstall Python 3.9+ and check "Add Python to PATH".
+    echo.
+    pause
+    exit /b 1
+)
+echo  [OK] pip repaired
+
+:PIP_READY
+
+REM -- 3. Install dependencies (core only, chromadb is optional) --------
 echo.
 echo  [*] Installing core dependencies...
 echo.
-python -m pip install --upgrade pip -q
 
 REM -- Use mirror index first (faster in CN), fallback through multiple mirrors
 set "DEPS=akshare pandas numpy rich openai"
@@ -63,7 +88,7 @@ if "%errorlevel%" neq "0" (
 )
 echo  [OK] Core dependencies ready
 
-REM -- 2b. Try installing chromadb (optional) --------------------------
+REM -- 4. Try installing chromadb (optional) --------------------------
 echo.
 echo  [*] Trying optional chromadb (memory store, skip if fails)...
 python -m pip install chromadb -q >nul 2>&1
@@ -73,7 +98,7 @@ if "%errorlevel%" equ "0" (
     echo  [!] ChromaDB skipped (memory feature will be unavailable)
 )
 
-REM -- 3. Check LLM config (optional) ----------------------------------
+REM -- 5. Check LLM config (optional) ----------------------------------
 if not exist llm_config.json (
     if not exist .env (
         echo.
@@ -86,7 +111,7 @@ if not exist llm_config.json (
     echo  [OK] LLM configured
 )
 
-REM -- 4. Run analysis -------------------------------------------------
+REM -- 6. Run analysis -------------------------------------------------
 echo.
 echo  [*] Starting 6-layer market analysis (takes a few minutes)...
 echo.
@@ -99,7 +124,7 @@ if "%errorlevel%" neq "0" (
     exit /b 1
 )
 
-REM -- 4b. Run backtest (optional, skip if fails) ----------------------
+REM -- 6b. Run backtest (optional, skip if fails) ----------------------
 echo.
 echo  [*] Running backtest (optional, default: 300394)...
 echo.
@@ -108,7 +133,7 @@ if "%errorlevel%" neq "0" (
     echo  [!] Backtest skipped (not critical)
 )
 
-REM -- 5. Start Web server and open browser ----------------------------
+REM -- 7. Start Web server and open browser ----------------------------
 echo.
 echo  [*] Starting Web server...
 start /b python -m http.server 8080 --directory web >nul 2>&1
