@@ -93,9 +93,9 @@ echo.
 echo  [*] Trying optional chromadb (memory store, skip if fails)...
 python -m pip install chromadb -q >nul 2>&1
 if "%errorlevel%" equ "0" (
-    echo  [OK] ChromaDB installed (long-term memory enabled)
+    echo  [OK] ChromaDB installed [long-term memory enabled]
 ) else (
-    echo  [!] ChromaDB skipped (memory feature will be unavailable)
+    echo  [!] ChromaDB skipped [memory feature will be unavailable]
 )
 
 REM -- 5. Check LLM config (optional) ----------------------------------
@@ -130,16 +130,32 @@ echo  [*] Running backtest (optional, default: 300394)...
 echo.
 python backtest.py
 if "%errorlevel%" neq "0" (
-    echo  [!] Backtest skipped (not critical)
+    echo  [!] Backtest skipped [not critical]
 )
 
 REM -- 7. Start Web server and open browser ----------------------------
 echo.
 echo  [*] Starting Web server...
-start /b python -m http.server 8080 --directory web >nul 2>&1
-timeout /t 1 /nobreak >nul
 
-echo  [OK] Server started
+python -c "import socket,sys;s=socket.socket();s.settimeout(0.5);sys.exit(0 if s.connect_ex(('127.0.0.1',8080))==0 else 1)"
+if "%errorlevel%" equ "0" goto SERVER_READY
+
+start /b python -m http.server 8080 --directory web >nul 2>&1
+
+set /a TRY=0
+:WAIT_SERVER
+python -c "import socket,sys;s=socket.socket();s.settimeout(0.5);sys.exit(0 if s.connect_ex(('127.0.0.1',8080))==0 else 1)"
+if "%errorlevel%" equ "0" goto SERVER_READY
+set /a TRY+=1
+if %TRY% geq 20 goto SERVER_SLOW
+python -c "import time;time.sleep(1)"
+goto WAIT_SERVER
+
+:SERVER_SLOW
+echo  [!] Server is slow to start, opening page anyway...
+
+:SERVER_READY
+echo  [OK] Server ready: http://localhost:8080
 echo.
 echo  ========================================================
 echo    Browser will open at: http://localhost:8080
@@ -147,9 +163,13 @@ echo    Close this window to stop the server.
 echo  ========================================================
 echo.
 
-start http://localhost:8080
+python -c "import webbrowser,sys;sys.exit(0 if webbrowser.open('http://localhost:8080') else 1)"
+if "%errorlevel%" equ "0" goto BROWSER_OK
+echo  [!] Auto-open failed, trying system handler...
+start "" "http://localhost:8080"
+:BROWSER_OK
 
 echo  Press any key to stop the server and exit...
 pause >nul
-taskkill /f /im python.exe /fi "WINDOWTITLE eq *http.server*" >nul 2>&1
+taskkill /f /im python.exe /fi "WINDOWTITLE eq Daidi*" >nul 2>&1
 endlocal
