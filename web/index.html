@@ -1698,6 +1698,41 @@ function _renderSingleKline(code,kline,elId){
   var bgC=dk?'#1e1e1e':'#ffffff', txC=dk?'#888':'#999', gridC=dk?'#2a2a2a':'#f0f0f0';
   var upC='#e24b4a', dnC='#1d9e75';
 
+  // 涨跌幅：以前一日收盘价为基准，首日退化为 (收-开)/开
+  function pctOf(i){
+    var k=kline[i];
+    if(!k) return null;
+    var base=(i>0&&kline[i-1]&&kline[i-1].close)?kline[i-1].close:k.open;
+    if(!base) return null;
+    return (k.close-base)/base*100;
+  }
+  function chgOf(i){
+    if(i<1||!kline[i-1]||!kline[i-1].close) return null;
+    return kline[i].close-kline[i-1].close;
+  }
+  function pctText(v){
+    if(v===null||isNaN(v)) return '—';
+    return (v>0?'+':'')+v.toFixed(2)+'%';
+  }
+  function pctColor(v){return v===null?'#999':(v>0?upC:(v<0?dnC:'#999'));}
+  function chgText(v){return v===null?'—':(v>0?'+':'')+v.toFixed(2);}
+
+  // 区间涨跌幅徽标（右上角）；需在图渲染后追加，避免被 echarts/canvas 清空容器时移除
+  var firstC=kline[0].close, lastC=kline[kline.length-1].close;
+  var rangePct=(firstC&&lastC)?(lastC-firstC)/firstC*100:null;
+  function addBadge(){
+    if(rangePct===null) return;
+    if(!el.style.position) el.style.position='relative';
+    var oldBadge=el.querySelector('.kline-badge');
+    if(oldBadge&&oldBadge.parentNode) oldBadge.parentNode.removeChild(oldBadge);
+    var badge=document.createElement('span');
+    badge.className='kline-badge';
+    badge.textContent='近'+kline.length+'日 '+pctText(rangePct);
+    badge.style.cssText='position:absolute;right:6px;top:2px;z-index:6;font-size:11px;font-weight:700;'
+      +'padding:1px 7px;border-radius:9px;pointer-events:none;color:#fff;background:'+pctColor(rangePct)+';';
+    el.appendChild(badge);
+  }
+
   // 用echarts（如果可用），否则用canvas
   if(typeof echarts!=='undefined'){
     try{
@@ -1709,7 +1744,10 @@ function _renderSingleKline(code,kline,elId){
       var closes=kline.map(function(k){return k.close;});
       chart.setOption({backgroundColor:bgC,animation:false,
         tooltip:{trigger:'axis',axisPointer:{type:'cross'},
-          formatter:function(p){if(!p||!p.length)return'';var i=p[0].dataIndex;var k=kline[i];if(!k)return'';return'<b>'+k.date+'</b><br/>开:'+k.open+' 收:<b>'+k.close+'</b><br/>高:'+k.high+' 低:'+k.low;}},
+          formatter:function(p){if(!p||!p.length)return'';var i=p[0].dataIndex;var k=kline[i];if(!k)return'';
+            var pct=pctOf(i),chg=chgOf(i);
+            return'<b>'+k.date+'</b><br/>开:'+k.open+' 收:<b>'+k.close+'</b><br/>高:'+k.high+' 低:'+k.low
+              +'<br/>涨跌:<b>'+chgText(chg)+'</b> <b style="color:'+pctColor(pct)+'">'+pctText(pct)+'</b>';}},
         grid:[{left:60,right:20,top:10,height:'55%'},{left:60,right:20,top:'72%',height:'16%'}],
         xAxis:[{type:'category',data:dates,gridIndex:0,axisLabel:{show:false},boundaryGap:true},{type:'category',data:dates,gridIndex:1,axisLabel:{color:txC,fontSize:9},boundaryGap:true}],
         yAxis:[{type:'value',gridIndex:0,position:'left',axisLabel:{color:txC,fontSize:9,formatter:function(v){return v.toFixed(0);}},splitLine:{lineStyle:{color:gridC,type:'dashed'}},scale:true},{type:'value',gridIndex:1,position:'left',axisLabel:{show:false},splitLine:{show:false}}],
@@ -1721,6 +1759,7 @@ function _renderSingleKline(code,kline,elId){
           {name:'MA20',type:'line',xAxisIndex:0,yAxisIndex:0,data:ma(closes,20),lineStyle:{width:1},symbol:'none',itemStyle:{color:'#7f77dd'}},
           {name:'V',type:'bar',xAxisIndex:1,yAxisIndex:1,data:vols,itemStyle:{color:function(p){return p.dataIndex>=1&&kline[p.dataIndex].close>=kline[p.dataIndex-1].close?'rgba(226,75,74,0.5)':'rgba(29,158,117,0.5)';}}}
         ]});
+      addBadge();
       window.addEventListener('resize',function(){chart.resize();});
       return;
     }catch(e){}
@@ -1731,6 +1770,7 @@ function _renderSingleKline(code,kline,elId){
   cvs.width=W*2; cvs.height=H*2;
   cvs.style.cssText='width:100%;height:100%;';
   el.innerHTML=''; el.appendChild(cvs);
+  addBadge();
   var ctx=cvs.getContext('2d'); ctx.scale(2,2);
   ctx.fillStyle=bgC; ctx.fillRect(0,0,W,H);
 
@@ -1803,6 +1843,29 @@ function _renderSingleKline(code,kline,elId){
   // 标题
   ctx.fillStyle=dk?'#ccc':'#333'; ctx.font='bold 11px sans-serif'; ctx.textAlign='left';
   ctx.fillText(code+' K线', pad.l, pad.t-1<8?8:pad.t);
+
+  // 悬停显示当日涨跌与涨跌幅
+  if(!el.style.position) el.style.position='relative';
+  cvs.style.cursor='crosshair';
+  var tip=document.createElement('div');
+  tip.style.cssText='position:absolute;z-index:7;display:none;pointer-events:none;background:rgba(30,30,30,.92);'
+    +'color:#fff;font-size:11px;line-height:1.65;padding:6px 8px;border-radius:6px;white-space:nowrap;';
+  el.appendChild(tip);
+  cvs.addEventListener('mousemove',function(ev){
+    var r=cvs.getBoundingClientRect();
+    if(!r.width) return;
+    var mx=(ev.clientX-r.left)/r.width*W;
+    var i=Math.floor((mx-pad.l)/kW);
+    if(i<0||i>=n){tip.style.display='none';return;}
+    var k=kline[i], pct=pctOf(i), chg=chgOf(i);
+    var pcol=pct===null?'#ccc':(pct>0?'#ff7b7a':(pct<0?'#3ddc97':'#ccc'));
+    tip.innerHTML='<b>'+k.date+'</b><br/>开 '+k.open+'　收 '+k.close+'<br/>高 '+k.high+'　低 '+k.low
+      +'<br/>涨跌 '+chgText(chg)+'　<b style="color:'+pcol+'">'+pctText(pct)+'</b>';
+    tip.style.display='block';
+    var left=mx+12; if(left>W-170) left=Math.max(mx-170,0);
+    tip.style.left=left+'px'; tip.style.top='4px';
+  });
+  cvs.addEventListener('mouseleave',function(){tip.style.display='none';});
 }
 
 function renderKlineCharts(){
